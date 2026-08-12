@@ -10,6 +10,13 @@ Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC), Hermes Des
 
 ## Deploy
 
+All:
+
+```bash
+[git clone repo https url]
+git checkout hermes
+```
+
 Linux, macOS, Termux:
 
 ```bash
