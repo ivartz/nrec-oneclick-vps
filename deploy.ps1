@@ -13,13 +13,11 @@ foreach ($v in @("OS_USERNAME", "OS_PASSWORD", "OS_AUTH_URL")) {
 $operatorIp = try { (Invoke-RestMethod -Uri "https://api.ipify.org" -TimeoutSec 5) } catch { "" }
 
 $tfvars = @"
-flavor_name          = "gr1.L40S.24g.4xlarge"
-image_name           = "vGPU Ubuntu 24.04 LTS"
+flavor_name          = "c1.xlarge"
+image_name           = "GOLD Ubuntu 26.04 LTS"
 admin_user           = "hermes"
 ssh_user             = "ubuntu"
-ollama_model         = "ornith"
 local_vnc_port       = 55901
-local_ollama_port    = 51434
 operator_public_ip   = "$operatorIp"
 operator_public_ipv6 = ""
 "@
@@ -47,4 +45,3 @@ Write-Host "Key:   $(terraform output -raw private_key_path)"
 Write-Host "Pass:  $(terraform output -raw admin_password)"
 Write-Host ""
 Write-Host (terraform output -raw vnc_tunnel_command)
-Write-Host (terraform output -raw ollama_tunnel_command)

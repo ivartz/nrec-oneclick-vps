@@ -1,6 +1,6 @@
 # Hermes VPS — One-Click OpenStack Deployment
 
-Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC), NVIDIA vGPU, Ollama, Hermes Desktop, Chromium, and Obsidian. Terraform + cloud-init only.
+Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC), Hermes Desktop, Chromium, and Obsidian. Terraform + cloud-init only.
 
 ## Prerequisites
 
@@ -10,16 +10,23 @@ Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC), NVIDIA vGP
 
 ## Deploy
 
+Linux, macOS, Termux:
+
 ```bash
 cp env.sh.template env.sh   # fill in credentials
-bash deploy.sh              # Linux, macOS, Termux
+./deploy.sh
 ```
-
-Windows: `powershell -ExecutionPolicy Bypass -File deploy.ps1`
-
 Termux: `deploy.sh` auto-starts `https_proxy.py` (DNS workaround) and uses the offline provider mirror.
 
-Logs can found at /var/log/hermes-vps and /home/hermes/.vnc
+Windows:
+
+```bash
+cp env.ps1.template env.ps1 # fill in credentials
+powershell -ExecutionPolicy Bypass -File deploy.ps1`
+```
+TODO: Missing env.ps1.template
+
+Logs can found in VM at /var/log/hermes-vps and /home/hermes/.vnc
 
 ## After deploy
 
@@ -54,8 +61,7 @@ Passwords (all the same):
 ## Verify
 
 ```bash
-nvidia-smi
-curl http://localhost:11434/api/tags
+which obsidian
 which chromium
 hermes --version
 ```
@@ -64,7 +70,7 @@ hermes --version
 
 - NREC IPv6 network (public IPv6, private IPv4) or dualStack fallback
 - SSH-only ingress, locked to operator IP
-- No floating IPs, no public VNC/Ollama ports
+- No floating IPs, no public VNC ports
 
 ## Tear down
 

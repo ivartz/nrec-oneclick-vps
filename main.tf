@@ -15,8 +15,8 @@ locals {
   private_key         = "${path.module}/${var.keys_dir}/${local.deployment_id}.pem"
   vnc_password_file   = "${path.module}/${var.keys_dir}/${local.deployment_id}.vncpass"
   operator_cidr       = var.operator_public_ip != "" ? "${var.operator_public_ip}/32" : "0.0.0.0/0"
+  operator_ipv6_cidr  = var.operator_public_ipv6 != "" ? "${var.operator_public_ipv6}/128" : "::/0"
   has_ipv6            = var.operator_public_ipv6 != ""
-  operator_ipv6_cidr  = var.operator_public_ipv6 != "" ? "${var.operator_public_ipv6}/128" : ""
   use_dualstack       = !local.has_ipv6
   network_id          = local.use_dualstack ? data.openstack_networking_network_v2.dualstack.id : data.openstack_networking_network_v2.ipv6.id
 }
@@ -48,7 +48,7 @@ data "openstack_networking_secgroup_v2" "default" {
 
 resource "openstack_networking_secgroup_v2" "ssh_only" {
   name        = "${local.deployment_id}-ssh"
-  description = "SSH-only ingress. VNC and Ollama via SSH tunnel."
+  description = "SSH-only ingress. VNC via SSH tunnel."
 }
 
 resource "openstack_networking_secgroup_rule_v2" "ssh" {
@@ -111,7 +111,7 @@ resource "openstack_compute_instance_v2" "vm" {
     admin_user       = var.admin_user
     admin_password   = random_password.admin.result
     ssh_public_key   = tls_private_key.deployer.public_key_openssh
-    ollama_model     = var.ollama_model
+    turbovnc_deb_url = var.turbovnc_deb_url
     obsidian_deb_url = var.obsidian_deb_url
   })
 }
