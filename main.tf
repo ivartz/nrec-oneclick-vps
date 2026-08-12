@@ -14,7 +14,7 @@ locals {
   deployment_id       = var.deployment_id != "" ? var.deployment_id : "hermes-${random_string.suffix[0].result}"
   private_key         = "${path.module}/${var.keys_dir}/${local.deployment_id}.pem"
   vnc_password_file   = "${path.module}/${var.keys_dir}/${local.deployment_id}.vncpass"
-  operator_cidr       = var.operator_public_ip != "" ? "${var.operator_public_ip}/32" : "0.0.0.0/0"
+  operator_ipv4_cidr  = var.operator_public_ipv4 != "" ? "${var.operator_public_ipv4}/32" : "0.0.0.0/0"
   operator_ipv6_cidr  = var.operator_public_ipv6 != "" ? "${var.operator_public_ipv6}/128" : "::/0"
   has_ipv6            = var.operator_public_ipv6 != ""
   use_dualstack       = !local.has_ipv6

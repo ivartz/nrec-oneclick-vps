@@ -53,7 +53,7 @@ variable "local_vnc_port" {
   default = 55901
 }
 
-variable "operator_public_ip" {
+variable "operator_public_ipv4" {
   type    = string
   default = ""
 }

@@ -10,7 +10,7 @@ foreach ($v in @("OS_USERNAME", "OS_PASSWORD", "OS_AUTH_URL")) {
     if (-not (Get-ItemVariable "env:$v" -ErrorAction SilentlyContinue)) { Write-Host "ERROR: $v not set in env.ps1" -ForegroundColor Red; exit 1 }
 }
 
-$operatorIp = try { (Invoke-RestMethod -Uri "https://api.ipify.org" -TimeoutSec 5) } catch { "" }
+$operatorIp = try { (Invoke-RestMethod -Uri "https://ifconfig.co" -TimeoutSec 5) } catch { "" }
 
 $tfvars = @"
 flavor_name          = "c1.xlarge"
