@@ -52,6 +52,7 @@ resource "openstack_networking_secgroup_v2" "ssh_only" {
 }
 
 resource "openstack_networking_secgroup_rule_v2" "ssh" {
+  count             = local.has_ipv6 ? 0 : 1
   direction         = "ingress"
   ethertype         = "IPv4"
   protocol          = "tcp"
