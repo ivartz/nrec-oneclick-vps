@@ -49,6 +49,11 @@ ssh -L 55901:localhost:5901 -i keys/<id>.pem ubuntu@<ip>
 # vncviewer localhost:55901
 ```
 
+Start chromium for testing (from VNC session):
+```bash
+chromium --no-sandbox
+```
+
 End VNC session:
 ```bash
 sudo -u hermes /opt/TurboVNC/bin/vncserver -kill :1

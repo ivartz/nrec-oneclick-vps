@@ -123,7 +123,7 @@ resource "null_resource" "wait_for_cloud_init" {
 
   connection {
     type        = "ssh"
-    host        = openstack_compute_instance_v2.vm.access_ip_v4
+    host        = local.has_ipv6 ? openstack_compute_instance_v2.vm.access_ip_v6 : openstack_compute_instance_v2.vm.access_ip_v4
     user        = var.ssh_user
     private_key = tls_private_key.deployer.private_key_openssh
     timeout     = "10m"
