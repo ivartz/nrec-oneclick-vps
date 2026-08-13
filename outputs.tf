@@ -36,5 +36,5 @@ output "vnc_tunnel_command" {
 }
 
 output "vnc_session_command" {
-  value = "sudo -u ${var.admin_user} /opt/TurboVNC/bin/vncserver :1"
+  value = "vncserver :1"
 }
