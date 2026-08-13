@@ -87,7 +87,9 @@ write_files:
       export HOME=/root
       exec > /var/log/vps-desktop/02-chromium.log 2>&1
 
-      apt-get install -y chromium-browser
+      wget -fsSL -O /tmp/google-chrome-stable.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+      dpkg -i /tmp/google-chrome-stable.deb || apt-get install -f -y
+      rm -f /tmp/google-chrome-stable.deb
 
 runcmd:
   - mkdir -p /var/log/vps-desktop
