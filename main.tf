@@ -11,14 +11,14 @@ resource "random_string" "suffix" {
 }
 
 locals {
-  deployment_id       = var.deployment_id != "" ? var.deployment_id : "hermes-${random_string.suffix[0].result}"
-  private_key         = "${path.module}/${var.keys_dir}/${local.deployment_id}.pem"
-  vnc_password_file   = "${path.module}/${var.keys_dir}/${local.deployment_id}.vncpass"
-  operator_cidr       = var.operator_public_ip != "" ? "${var.operator_public_ip}/32" : "0.0.0.0/0"
-  has_ipv6            = var.operator_public_ipv6 != ""
-  operator_ipv6_cidr  = var.operator_public_ipv6 != "" ? "${var.operator_public_ipv6}/128" : ""
-  use_dualstack       = !local.has_ipv6
-  network_id          = local.use_dualstack ? data.openstack_networking_network_v2.dualstack.id : data.openstack_networking_network_v2.ipv6.id
+  deployment_id      = var.deployment_id != "" ? var.deployment_id : "vps-${random_string.suffix[0].result}"
+  private_key        = "${path.module}/${var.keys_dir}/${local.deployment_id}.pem"
+  vnc_password_file  = "${path.module}/${var.keys_dir}/${local.deployment_id}.vncpass"
+  operator_ipv4_cidr = var.operator_public_ipv4 != "" ? "${var.operator_public_ipv4}/32" : "0.0.0.0/0"
+  operator_ipv6_cidr = var.operator_public_ipv6 != "" ? "${var.operator_public_ipv6}/128" : "::/0"
+  has_ipv6           = var.operator_public_ipv6 != ""
+  use_dualstack      = !local.has_ipv6
+  network_id         = local.use_dualstack ? data.openstack_networking_network_v2.dualstack.id : data.openstack_networking_network_v2.ipv6.id
 }
 
 resource "tls_private_key" "deployer" {
@@ -27,8 +27,8 @@ resource "tls_private_key" "deployer" {
 
 resource "local_sensitive_file" "private_key" {
   content         = tls_private_key.deployer.private_key_openssh
-  filename          = local.private_key
-  file_permission   = "0600"
+  filename        = local.private_key
+  file_permission = "0600"
 }
 
 resource "local_sensitive_file" "vnc_password" {
@@ -48,16 +48,17 @@ data "openstack_networking_secgroup_v2" "default" {
 
 resource "openstack_networking_secgroup_v2" "ssh_only" {
   name        = "${local.deployment_id}-ssh"
-  description = "SSH-only ingress. VNC and Ollama via SSH tunnel."
+  description = "SSH-only ingress. VNC via SSH tunnel."
 }
 
 resource "openstack_networking_secgroup_rule_v2" "ssh" {
+  count             = local.has_ipv6 ? 0 : 1
   direction         = "ingress"
   ethertype         = "IPv4"
   protocol          = "tcp"
   port_range_min    = 22
   port_range_max    = 22
-  remote_ip_prefix  = local.operator_cidr
+  remote_ip_prefix  = local.operator_ipv4_cidr
   security_group_id = openstack_networking_secgroup_v2.ssh_only.id
 }
 
@@ -111,18 +112,17 @@ resource "openstack_compute_instance_v2" "vm" {
     admin_user       = var.admin_user
     admin_password   = random_password.admin.result
     ssh_public_key   = tls_private_key.deployer.public_key_openssh
-    ollama_model     = var.ollama_model
-    obsidian_deb_url = var.obsidian_deb_url
+    turbovnc_deb_url = var.turbovnc_deb_url
   })
 }
 
 resource "null_resource" "wait_for_cloud_init" {
   depends_on = [openstack_compute_instance_v2.vm]
-  triggers = { instance_id = openstack_compute_instance_v2.vm.id }
+  triggers   = { instance_id = openstack_compute_instance_v2.vm.id }
 
   connection {
     type        = "ssh"
-    host        = openstack_compute_instance_v2.vm.access_ip_v4
+    host        = local.has_ipv6 ? openstack_compute_instance_v2.vm.access_ip_v6 : openstack_compute_instance_v2.vm.access_ip_v4
     user        = var.ssh_user
     private_key = tls_private_key.deployer.private_key_openssh
     timeout     = "10m"

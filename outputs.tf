@@ -28,13 +28,13 @@ output "vnc_password_path" {
 }
 
 output "ssh_command" {
-  value = "ssh -i ${local.private_key} ${var.ssh_user}@${openstack_compute_instance_v2.vm.access_ip_v4}"
+  value = local.has_ipv6 ? "ssh -i ${local.private_key} ${var.ssh_user}@${openstack_compute_instance_v2.vm.access_ip_v6}" : "ssh -i ${local.private_key} ${var.ssh_user}@${openstack_compute_instance_v2.vm.access_ip_v4}"
 }
 
 output "vnc_tunnel_command" {
-  value = "ssh -L ${var.local_vnc_port}:localhost:5901 -i ${local.private_key} ${var.ssh_user}@${openstack_compute_instance_v2.vm.access_ip_v4}"
+  value = local.has_ipv6 ? "ssh -L ${var.local_vnc_port}:localhost:5901 -i ${local.private_key} ${var.ssh_user}@${openstack_compute_instance_v2.vm.access_ip_v6}" : "ssh -L ${var.local_vnc_port}:localhost:5901 -i ${local.private_key} ${var.ssh_user}@${openstack_compute_instance_v2.vm.access_ip_v4}"
 }
 
-output "ollama_tunnel_command" {
-  value = "ssh -L ${var.local_ollama_port}:localhost:11434 -i ${local.private_key} ${var.ssh_user}@${openstack_compute_instance_v2.vm.access_ip_v4}"
+output "vnc_session_command" {
+  value = "sudo -u ${var.admin_user} /opt/TurboVNC/bin/vncserver :1"
 }

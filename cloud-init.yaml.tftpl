@@ -3,6 +3,8 @@
 package_update: false
 package_upgrade: false
 
+timezone: Europe/Oslo
+
 users:
   - name: ${admin_user}
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -26,19 +28,17 @@ chpasswd:
 
 write_files:
 
-  - path: /usr/local/lib/hermes-vps/01-desktop.sh
+  - path: /usr/local/lib/vps-desktop/01-desktop.sh
     permissions: '0755'
     content: |
       #!/bin/bash
       set -euo pipefail
       export DEBIAN_FRONTEND=noninteractive
       export HOME=/root
-      exec > /var/log/hermes-vps/01-desktop.log 2>&1
+      exec > /var/log/vps-desktop/01-desktop.log 2>&1
 
       apt-get update -qq
       export NEEDRESTART_MODE=l
-      mkdir -p /etc/apt/preferences.d
-      printf 'Package: firefox*\nPin: release o=*\nPin-Priority: -1\n' > /etc/apt/preferences.d/firefox
       apt-get install -y gnome-shell gnome-session gdm3 gnome-terminal \
         nautilus gnome-control-center gnome-keyring gnome-backgrounds \
         libgl1-mesa-dri xserver-xorg-video-all gnome-session-flashback \
@@ -51,7 +51,7 @@ write_files:
       systemctl disable --now NetworkManager-wait-online 2>/dev/null || true
       systemctl disable --now ModemManager 2>/dev/null || true
       chmod 000 /usr/libexec/gsd-usb-protection 2>/dev/null || true
-      curl -fsSL https://github.com/TurboVNC/turbovnc/releases/download/3.3/turbovnc_3.3_amd64.deb -o /tmp/turbovnc.deb
+      curl -fsSL "${turbovnc_deb_url}" -o /tmp/turbovnc.deb
       dpkg -i /tmp/turbovnc.deb || apt-get install -f -y
       rm -f /tmp/turbovnc.deb
       export PATH=/opt/TurboVNC/bin:$PATH
@@ -62,7 +62,7 @@ write_files:
       chmod 600 /home/${admin_user}/.vnc/passwd
       chown -R ${admin_user}:${admin_user} /home/${admin_user}/.vnc
 
-      cat /usr/local/lib/hermes-vps/turbovncserver.conf >> /etc/turbovncserver.conf
+      cat /usr/local/lib/vps-desktop/turbovncserver.conf >> /etc/turbovncserver.conf
 
       echo '${admin_password}' > /home/ubuntu/.vnc-passwd
       chmod 600 /home/ubuntu/.vnc-passwd
@@ -73,65 +73,31 @@ write_files:
 
       nvidia-smi > /dev/null 2>&1 && nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
 
-  - path: /usr/local/lib/hermes-vps/turbovncserver.conf
+  - path: /usr/local/lib/vps-desktop/turbovncserver.conf
     permissions: '0644'
     content: |
       $wm = "gnome-flashback-metacity";
       $userDBus = 1;
 
-  - path: /usr/local/lib/hermes-vps/02-ollama.sh
-    permissions: '0755'
-    content: |
-      #!/bin/bash
-      set -euo pipefail
-      exec > /var/log/hermes-vps/02-ollama.log 2>&1
-
-      curl -fsSL https://ollama.com/install.sh | sh
-      systemctl enable --now ollama
-
-      for i in $(seq 1 60); do
-        curl -s http://localhost:11434 > /dev/null 2>&1 && break
-        sleep 1
-      done
-
-      export HOME=/root OLLAMA_HOST=localhost:11434
-      ollama pull ${ollama_model} 2>&1 | tee /var/log/hermes-vps/02-ollama-pull.log || true
-
-  - path: /usr/local/lib/hermes-vps/03-hermes.sh
-    permissions: '0755'
-    content: |
-      #!/bin/bash
-      set -euo pipefail
-      exec > /var/log/hermes-vps/03-hermes.log 2>&1
-      sudo -u ${admin_user} -H HOME=/home/${admin_user} bash -c 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash'
-      CHROME=$(find /home/${admin_user}/.cache/ms-playwright/ -name chrome -type f -path '*/chrome-linux64/*' 2>/dev/null | head -1 || true)
-      [ -n "$CHROME" ] && ln -sf "$CHROME" /usr/local/bin/chromium
-      sudo -u ${admin_user} -H HOME=/home/${admin_user} PATH="/home/${admin_user}/.local/bin:$PATH" /home/${admin_user}/.local/bin/hermes desktop --build-only 2>&1 || true
-
-  - path: /usr/local/lib/hermes-vps/04-obsidian.sh
+  - path: /usr/local/lib/vps-desktop/02-chromium.sh
     permissions: '0755'
     content: |
       #!/bin/bash
       set -euo pipefail
       export HOME=/root
-      exec > /var/log/hermes-vps/04-obsidian.log 2>&1
+      exec > /var/log/vps-desktop/02-chromium.log 2>&1
 
-      curl -fsSL "${obsidian_deb_url}" -o /tmp/obsidian.deb
-      apt-get install -y /tmp/obsidian.deb
-      rm -f /tmp/obsidian.deb
-      mkdir -p /home/${admin_user}/Documents/ObsidianVault
-      chown -R ${admin_user}:${admin_user} /home/${admin_user}/Documents/ObsidianVault
+      apt-get install -y chromium-browser
 
 runcmd:
-  - mkdir -p /var/log/hermes-vps
+  - mkdir -p /var/log/vps-desktop
   - systemctl stop unattended-upgrades 2>/dev/null || true
   - systemctl mask sssd 2>/dev/null || true
   - systemctl mask gnome-remote-desktop 2>/dev/null || true
-  - bash /usr/local/lib/hermes-vps/01-desktop.sh
-  - bash /usr/local/lib/hermes-vps/04-obsidian.sh
-  - bash /usr/local/lib/hermes-vps/02-ollama.sh & bash /usr/local/lib/hermes-vps/03-hermes.sh & wait
+  - bash /usr/local/lib/vps-desktop/01-desktop.sh
+  - bash /usr/local/lib/vps-desktop/02-chromium.sh
 
 final_message: |
-  Hermes VPS ready. Start VNC: vncserver :1
+  VPS ready. Start VNC: vncserver :1
   Connect: ssh -L 55901:localhost:5901 -i <key> ubuntu@<ip>, then vncviewer localhost:55901
   VNC password: ${admin_password}

@@ -15,12 +15,12 @@ variable "keys_dir" {
 
 variable "flavor_name" {
   type    = string
-  default = "gr1.L40S.24g.4xlarge"
+  default = "c1.xlarge"
 }
 
 variable "image_name" {
   type    = string
-  default = "vGPU Ubuntu 24.04 LTS"
+  default = "GOLD Ubuntu 24.04 LTS"
 }
 
 variable "availability_zone" {
@@ -35,17 +35,12 @@ variable "ssh_user" {
 
 variable "admin_user" {
   type    = string
-  default = "hermes"
+  default = "ubuntu"
 }
 
-variable "ollama_model" {
+variable "turbovnc_deb_url" {
   type    = string
-  default = "ornith"
-}
-
-variable "obsidian_deb_url" {
-  type    = string
-  default = "https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian_1.12.7_amd64.deb"
+  default = "https://github.com/TurboVNC/turbovnc/releases/download/3.3/turbovnc_3.3_amd64.deb"
 }
 
 variable "local_vnc_port" {
@@ -53,12 +48,7 @@ variable "local_vnc_port" {
   default = 55901
 }
 
-variable "local_ollama_port" {
-  type    = number
-  default = 51434
-}
-
-variable "operator_public_ip" {
+variable "operator_public_ipv4" {
   type    = string
   default = ""
 }
