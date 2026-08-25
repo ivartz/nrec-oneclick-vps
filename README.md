@@ -54,20 +54,6 @@ Passwords (all the same):
 - VNC password: `cat keys/<id>.vncpass` (local)
 - On VM: `cat /home/ubuntu/.vnc-passwd` or `cat /home/ubuntu/.admin-password`
 
-## Additional sessions
-
-Session 2:
-```bash
-ssh -L 55902:localhost:5902 -i keys/<id>.pem ubuntu@<ip>
-vncserver :2
-```
-
-Session 3:
-```bash
-ssh -L 55903:localhost:5903 -i keys/<id>.pem ubuntu@<ip>
-vncserver :3
-```
-
 ## Network
 
 - NREC IPv6 network (public IPv6, private IPv4) or dualStack fallback
