@@ -50,11 +50,3 @@ terraform output -raw ssh_command
 echo ""
 echo "Start a VNC session with:"
 terraform output -raw vnc_session_command
-echo ""
-echo "More tunnels and sessions can be created:"
-echo "Session 2: "
-printf '%s\n' "  $(terraform output -raw vnc_tunnel_command | sed 's/55901/55902/; s/5901/5902/')"
-echo "  vncserver :2"
-echo "Session 3: "
-printf '%s\n' "  $(terraform output -raw vnc_tunnel_command | sed 's/55901/55903/; s/5901/5903/')"
-echo "  vncserver :3"
