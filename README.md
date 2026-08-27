@@ -1,6 +1,6 @@
 # NREC VPS — One-Click OpenStack Deployment
 
-Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC) and Chromium. Terraform + cloud-init only.
+Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC) and Google Chrome. Terraform + cloud-init only.
 
 ## Prerequisites
 
@@ -51,8 +51,8 @@ vncserver -kill :1
 ```
 
 Passwords (all the same):
-- VNC password: `cat keys/<id>.vncpass` (local)
-- On VM: `cat /home/ubuntu/.vnc-passwd` or `cat /home/ubuntu/.admin-password`
+- On VM: `cat /home/ubuntu/.vnc-passwd`
+- Local copy: `cat keys/<id>.vncpass`
 
 ## Network
 
