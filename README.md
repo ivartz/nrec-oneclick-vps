@@ -1,6 +1,6 @@
 # NREC VPS — One-Click OpenStack Deployment
 
-Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC) and Chromium. Terraform + cloud-init only.
+Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC) and Google Chrome. Terraform + cloud-init only.
 
 ## Prerequisites
 

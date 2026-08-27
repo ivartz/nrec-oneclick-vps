@@ -75,13 +75,13 @@ write_files:
       $wm = "gnome-flashback-metacity";
       $userDBus = 1;
 
-  - path: /usr/local/lib/vps-desktop/02-chromium.sh
+  - path: /usr/local/lib/vps-desktop/02-chrome.sh
     permissions: '0755'
     content: |
       #!/bin/bash
       set -euo pipefail
       export HOME=/root
-      exec > /var/log/vps-desktop/02-chromium.log 2>&1
+      exec > /var/log/vps-desktop/02-chrome.log 2>&1
 
       wget -SL -O /tmp/google-chrome-stable.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
       dpkg -i /tmp/google-chrome-stable.deb || apt-get install -f -y
@@ -95,7 +95,7 @@ runcmd:
   - systemctl mask sssd 2>/dev/null || true
   - systemctl mask gnome-remote-desktop 2>/dev/null || true
   - bash /usr/local/lib/vps-desktop/01-desktop.sh
-  - bash /usr/local/lib/vps-desktop/02-chromium.sh
+  - bash /usr/local/lib/vps-desktop/02-chrome.sh
 
 final_message: |
   VPS ready. Start VNC: vncserver :1
