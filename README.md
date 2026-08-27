@@ -51,8 +51,8 @@ vncserver -kill :1
 ```
 
 Passwords (all the same):
-- VNC password: `cat keys/<id>.vncpass` (local)
-- On VM: `cat /home/ubuntu/.vnc-passwd` or `cat /home/ubuntu/.admin-password`
+- On VM: `cat /home/ubuntu/.vnc-passwd`
+- Local copy: `cat keys/<id>.vncpass`
 
 ## Network
 
