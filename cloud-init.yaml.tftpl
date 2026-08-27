@@ -11,11 +11,6 @@ users:
     groups: render, video, sudo
     shell: /bin/bash
     lock_passwd: false
-
-  - name: ubuntu
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    groups: sudo
-    shell: /bin/bash
     ssh_authorized_keys:
       - ${ssh_public_key}
 
@@ -58,30 +53,21 @@ write_files:
       echo 'export PATH=/opt/TurboVNC/bin:$PATH' > /etc/profile.d/turbovnc.sh
 
       mkdir -p /home/${admin_user}/.vnc
-      echo "${admin_password}" | vncpasswd -f > /home/${admin_user}/.vnc/passwd
+      echo "${admin_password}" | vncpasswd -f > /home/${admin_user}/.vnc/passwd 2>/dev/null || true
       chmod 600 /home/${admin_user}/.vnc/passwd
       chown -R ${admin_user}:${admin_user} /home/${admin_user}/.vnc
+      # Write full-length password (vncpasswd truncates to 8 chars)
+      printf '%s' "${admin_password}" > /home/${admin_user}/.vnc-passwd
+      chmod 600 /home/${admin_user}/.vnc-passwd
+      chown ${admin_user}:${admin_user} /home/${admin_user}/.vnc-passwd
 
+      # Add TurboVNC to PATH for all interactive shells (non-login)
+      echo '' >> /home/${admin_user}/.bashrc
+      echo '# Add TurboVNC to PATH for all shells' >> /home/${admin_user}/.bashrc
+      echo 'export PATH=/opt/TurboVNC/bin:$PATH' >> /home/${admin_user}/.bashrc
+
+      # Install turbovncserver.conf
       cat /usr/local/lib/vps-desktop/turbovncserver.conf >> /etc/turbovncserver.conf
-
-      mkdir -p /home/${admin_user}/.config/autostart
-      cat > /home/${admin_user}/.config/autostart/gnome-settings-daemon.desktop << 'AUTOSTART'
-      [Desktop Entry]
-      Type=Application
-      Name=GNOME Settings Daemon
-      Exec=gnome-settings-daemon
-      X-GNOME-Autostart-enabled=true
-      AUTOSTART
-      chown -R ${admin_user}:${admin_user} /home/${admin_user}/.config/autostart
-
-      echo '${admin_password}' > /home/ubuntu/.vnc-passwd
-      chmod 600 /home/ubuntu/.vnc-passwd
-      chown ubuntu:ubuntu /home/ubuntu/.vnc-passwd
-      echo '${admin_password}' > /home/${admin_user}/.admin-password
-      chmod 600 /home/${admin_user}/.admin-password
-      chown ${admin_user}:${admin_user} /home/${admin_user}/.admin-password
-
-      nvidia-smi > /dev/null 2>&1 && nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
 
   - path: /usr/local/lib/vps-desktop/turbovncserver.conf
     permissions: '0644'
@@ -111,5 +97,6 @@ runcmd:
 
 final_message: |
   VPS ready. Start VNC: vncserver :1
+  Modern GNOME: vncserver :1 -wm gnome
   Connect: ssh -L 55901:localhost:5901 -i <key> ubuntu@<ip>, then vncviewer localhost:55901
   VNC password: ${admin_password}
