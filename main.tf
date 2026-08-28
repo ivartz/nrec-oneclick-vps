@@ -116,6 +116,19 @@ resource "openstack_compute_instance_v2" "vm" {
   })
 }
 
+resource "openstack_blockstorage_volume_v3" "storage" {
+  name              = "${local.deployment_id}-storage"
+  size              = var.storage_volume_size_gb
+  volume_type       = var.storage_volume_type
+  # No availability_zone: NREC Cinder rejects Nova AZ names ("osl-default-1 is invalid");
+  # omitting lets Cinder's default scheduler place it, as the NREC dashboard does.
+}
+
+resource "openstack_compute_volume_attach_v2" "storage" {
+  instance_id = openstack_compute_instance_v2.vm.id
+  volume_id   = openstack_blockstorage_volume_v3.storage.id
+}
+
 resource "null_resource" "wait_for_cloud_init" {
   depends_on = [openstack_compute_instance_v2.vm]
   triggers   = { instance_id = openstack_compute_instance_v2.vm.id }

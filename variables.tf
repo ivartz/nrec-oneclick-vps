@@ -57,3 +57,13 @@ variable "operator_public_ipv6" {
   type    = string
   default = ""
 }
+
+variable "storage_volume_size_gb" {
+  type    = number
+  default = 50
+}
+
+variable "storage_volume_type" {
+  type    = string
+  default = "mass-storage-default"
+}

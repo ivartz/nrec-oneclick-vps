@@ -60,6 +60,14 @@ Passwords (all the same):
 - SSH ingress locked to operator IP
 - No floating IPs, no public VNC ports
 
+## Storage
+
+A 50 GB `mass-storage-default` Cinder volume is attached as the second disk
+(`/dev/vdb` or `/dev/sdb` depending on image - detected dynamically), formatted
+ext4 (label `vps-storage`), and mounted at `/vault`. Owned by `ubuntu` -
+read/write out of the box. Mounted at boot via `/etc/fstab` with `nofail`, so
+a missing volume never blocks boot.
+
 ## Tear down
 
 ```bash

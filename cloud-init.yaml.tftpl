@@ -87,6 +87,45 @@ write_files:
       dpkg -i /tmp/google-chrome-stable.deb || apt-get install -f -y
       rm -f /tmp/google-chrome-stable.deb
 
+  - path: /usr/local/lib/vps-desktop/00-storage.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec > /var/log/vps-desktop/00-storage.log 2>&1
+
+      # Secondary Cinder volume, attached by Terraform right after boot.
+      # Device name varies by image/bus (vdX on virtio-blk, sdX on NREC GOLD images)
+      # -> detect dynamically: by label first (reruns), else first non-root disk.
+      LABEL=vps-storage
+      MOUNT=/vault
+
+      ROOT_DISK=$(lsblk -no PKNAME "$(findmnt -no SOURCE /)" | head -1)
+
+      i=0
+      until DEVICE=$(blkid -o device -t LABEL="$LABEL" | head -1); [ -b "$DEVICE" ] || [ "$i" -ge 60 ]; do
+        DEVICE=$(lsblk -drno NAME,TYPE | awk -v r="$ROOT_DISK" '$2 == "disk" && $1 != r {print "/dev/" $1; exit}')
+        [ -b "$DEVICE" ] && break
+        sleep 5
+        i=$((i + 1))
+      done
+      [ -b "$DEVICE" ] || { echo "ERROR: secondary volume not present after 300s"; exit 1; }
+
+      # Format only once: label presence means already formatted
+      if [ "$(blkid -s LABEL -o value "$DEVICE")" != "$LABEL" ]; then
+        lsblk -rno TYPE "$DEVICE" | grep -q part && { echo "ERROR: $DEVICE has partitions, refusing to format"; exit 1; }
+        [ -n "$(blkid -o value "$DEVICE")" ] && { echo "ERROR: $DEVICE already has a filesystem, refusing to format"; exit 1; }
+        mkfs.ext4 -q -L "$LABEL" "$DEVICE"
+      fi
+
+      mkdir -p "$MOUNT"
+      if ! grep -q "LABEL=$LABEL" /etc/fstab; then
+        echo "LABEL=$LABEL  $MOUNT  ext4  defaults,nofail  0 2" >> /etc/fstab
+      fi
+      mountpoint -q "$MOUNT" || mount "$MOUNT"
+      chown -R ${admin_user}:${admin_user} "$MOUNT"
+      df -h "$MOUNT"
+
 runcmd:
   - mkdir -p /var/log/vps-desktop
   # Prevent apt lock contention during provisioning
@@ -94,6 +133,7 @@ runcmd:
   - systemctl mask apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
   - systemctl mask sssd 2>/dev/null || true
   - systemctl mask gnome-remote-desktop 2>/dev/null || true
+  - bash /usr/local/lib/vps-desktop/00-storage.sh
   - bash /usr/local/lib/vps-desktop/01-desktop.sh
   - bash /usr/local/lib/vps-desktop/02-chrome.sh
 
