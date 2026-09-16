@@ -53,3 +53,4 @@ terraform output -raw ssh_and_rdp_tunnel_command
 echo ""
 echo "Connect RDP client (e.g. rdpclient) with:"
 terraform output -raw rdp_connect_command
+echo ""

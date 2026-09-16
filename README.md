@@ -4,7 +4,7 @@ Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME Flashback (Metacity) desktop v
 
 ## Prerequisites
 
-- Terraform >= 1.5
+- Terraform >= 1
 - NREC OpenStack credentials
 - SSH client + RDP client (Remmina, rdesktop, Microsoft Remote Desktop, etc.)
 
