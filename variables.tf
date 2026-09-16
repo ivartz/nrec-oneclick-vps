@@ -60,7 +60,7 @@ variable "operator_public_ipv6" {
 
 variable "storage_volume_size_gb" {
   type    = number
-  default = 50
+  default = 20
 }
 
 variable "storage_volume_type" {
