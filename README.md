@@ -1,12 +1,12 @@
 # NREC VPS — One-Click OpenStack Deployment
 
-Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC) and Google Chrome. Terraform + cloud-init only.
+Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME Flashback (Metacity) desktop via xrdp/RDP and Google Chrome. Terraform + cloud-init only.
 
 ## Prerequisites
 
 - Terraform >= 1.5
 - NREC OpenStack credentials
-- SSH + VNC client
+- SSH client + RDP client (Remmina, rdesktop, Microsoft Remote Desktop, etc.)
 
 ## Deploy
 
@@ -30,39 +30,28 @@ powershell -ExecutionPolicy Bypass -File deploy.ps1
 
 ```bash
 ssh -i keys/<id>.pem ubuntu@<ip>
-vncserver :1
 ```
 
-Default session is GNOME Flashback (Metacity). For modern GNOME:
+The xrdp service starts automatically on boot. GNOME Flashback (Metacity) is the default session.
+
+Connect RDP via SSH tunnel:
 
 ```bash
-vncserver :1 -wm gnome
+ssh -L 33389:localhost:3389 -i keys/<id>.pem ubuntu@<ip>
+# Then connect with your RDP client to localhost:33389
 ```
 
-Connect VNC via tunnel:
-```bash
-ssh -L 55901:localhost:5901 -i keys/<id>.pem ubuntu@<ip>
-# vncviewer localhost:55901
-```
-
-End VNC session:
-```bash
-vncserver -kill :1
-```
-
-Passwords (all the same):
-- On VM: `cat /home/ubuntu/.vnc-passwd`
-- Local copy: `cat keys/<id>.vncpass`
+Use the Linux password (`keys/<id>.password` locally, `~/.admin-password` on the VM) for RDP authentication. GNOME Flashback (Metacity) sessions persist on the server: disconnecting and reconnecting reattaches to the same session.
 
 ## Network
 
 - NREC IPv6 network (public IPv6, private IPv4) or dualStack fallback
 - SSH ingress locked to operator IP
-- No floating IPs, no public VNC ports
+- No floating IPs, no public RDP ports
 
 ## Storage
 
-A 50 GB `mass-storage-default` Cinder volume is attached as the second disk
+A 20 GB `mass-storage-default` Cinder volume is attached as the second disk
 (`/dev/vdb` or `/dev/sdb` depending on image - detected dynamically), formatted
 ext4 (label `vps-storage`), and mounted at `/vault`. Owned by `ubuntu` -
 read/write out of the box. Mounted at boot via `/etc/fstab` with `nofail`, so

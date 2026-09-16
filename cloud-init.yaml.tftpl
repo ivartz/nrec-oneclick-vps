@@ -34,46 +34,93 @@ write_files:
 
       apt-get update -qq
       export NEEDRESTART_MODE=l
-      apt-get install -y gnome-shell gnome-session gdm3 gnome-terminal \
-        nautilus gnome-control-center gnome-keyring gnome-backgrounds \
-        libgl1-mesa-dri xserver-xorg-video-all gnome-session-flashback \
-        gnome-calculator gnome-system-monitor gnome-disk-utility \
-        eog evince gnome-text-editor baobab gnome-logs gnome-screenshot \
-        dmz-cursor-theme \
-        ripgrep ffmpeg xvfb dbus-x11 \
-        fonts-liberation fonts-noto-color-emoji fonts-ubuntu xsel
+      apt-get install -y gnome-session gnome-session-flashback \
+        xrdp xorgxrdp dbus-x11 \
+        gnome-text-editor evince gnome-disk-utility baobab \
+        gnome-screenshot gnome-calculator \
+        fonts-liberation fonts-noto-color-emoji fonts-ubuntu xsel \
+        ripgrep ffmpeg xdg-utils
+
+      # never let needrestart (apt hook) auto-restart xrdp/xrdp-sesman:
+      # restarting the daemons mid-session orphans live RDP sessions
+      # (sesman registry wiped, GNOME keeps the user D-Bus names, so the
+      # next login creates a new session that dies instantly). Any later
+      # apt operation (installers, unattended-upgrades) would bounce xrdp
+      # again without this. override_rc=0 -> report but never restart.
+      install -d /etc/needrestart/conf.d
+      printf '%s\n' \
+        '# xrdp MUST NOT be auto-restarted by needrestart (apt hook):' \
+        '# restart orphans live RDP sessions. Restart manually during' \
+        '# maintenance instead. override_rc=0 -> report, never restart.' \
+        '$nrconf{override_rc} = { qr(^xrdp) => 0 };' \
+        > /etc/needrestart/conf.d/xrdp.conf
+
       systemctl disable --now snapd 2>/dev/null || true
       systemctl disable --now NetworkManager-wait-online 2>/dev/null || true
       systemctl disable --now ModemManager 2>/dev/null || true
-      chmod 000 /usr/libexec/gsd-usb-protection 2>/dev/null || true
-      curl -fsSL "${turbovnc_deb_url}" -o /tmp/turbovnc.deb
-      dpkg -i /tmp/turbovnc.deb || apt-get install -f -y
-      rm -f /tmp/turbovnc.deb
-      export PATH=/opt/TurboVNC/bin:$PATH
-      echo 'export PATH=/opt/TurboVNC/bin:$PATH' > /etc/profile.d/turbovnc.sh
 
-      mkdir -p /home/${admin_user}/.vnc
-      echo "${admin_password}" | vncpasswd -f > /home/${admin_user}/.vnc/passwd 2>/dev/null || true
-      chmod 600 /home/${admin_user}/.vnc/passwd
-      chown -R ${admin_user}:${admin_user} /home/${admin_user}/.vnc
-      # Write full-length password (vncpasswd truncates to 8 chars)
-      printf '%s' "${admin_password}" > /home/${admin_user}/.vnc-passwd
-      chmod 600 /home/${admin_user}/.vnc-passwd
-      chown ${admin_user}:${admin_user} /home/${admin_user}/.vnc-passwd
+      # GNOME Flashback (Metacity) as default xrdp session:
+      # default startwm.sh -> /etc/X11/Xsession -> Xsession.d/75dbus_dbus-launch
+      # sets up the D-Bus session bus, then runs x-session-manager
+      # (pointed at gnome-flashback-metacity via alternatives).
+      # Do NOT write a custom startwm.sh: bypassing /etc/X11/Xsession
+      # loses dbus setup and gnome-session exits instantly.
+      update-alternatives --set x-session-manager /usr/libexec/gnome-flashback-metacity
 
-      # Add TurboVNC to PATH for all interactive shells (non-login)
-      echo '' >> /home/${admin_user}/.bashrc
-      echo '# Add TurboVNC to PATH for all shells' >> /home/${admin_user}/.bashrc
-      echo 'export PATH=/opt/TurboVNC/bin:$PATH' >> /home/${admin_user}/.bashrc
+      # xrdp needs the snakeoil TLS key: add xrdp user to ssl-cert
+      usermod -aG ssl-cert xrdp
 
-      # Install turbovncserver.conf
-      cat /usr/local/lib/vps-desktop/turbovncserver.conf >> /etc/turbovncserver.conf
+      # Enable and (re)start xrdp.
+      # restart, not start: apt already auto-started xrdp during install,
+      # and a running process does NOT pick up new supplementary groups
+      # from usermod. Without a restart xrdp cannot read key.pem and
+      # every session falls back to legacy RDP security.
+      systemctl enable xrdp
+      systemctl restart xrdp
 
-  - path: /usr/local/lib/vps-desktop/turbovncserver.conf
-    permissions: '0644'
-    content: |
-      $wm = "gnome-flashback-metacity";
-      $userDBus = 1;
+      # Write admin password to home directory for reference
+      mkdir -p /home/${admin_user}
+      printf '%s' "${admin_password}" > /home/${admin_user}/.admin-password
+      chmod 600 /home/${admin_user}/.admin-password
+      chown ${admin_user}:${admin_user} /home/${admin_user}/.admin-password
+
+      # /vault bookmark in the file manager (nautilus reads this file for
+      # both GTK3 and GTK4 builds). "file:///vault Vault" shows a "Vault"
+      # entry in the sidebar pointing at /vault. The mount is created by
+      # 00-storage.sh, but the bookmark only needs the path to exist.
+      VHOME=/home/${admin_user}
+      # .config itself must be user-owned: dconf (lock settings, panel
+      # layout) writes its DB under .config/dconf and fails silently
+      # if the parent dir is root-owned. Do NOT chown -R the whole
+      # .config: user-run apps may have placed root-needed files.
+      chown ${admin_user}:${admin_user} "$VHOME/.config" 2>/dev/null \
+        || install -d -o ${admin_user} -g ${admin_user} "$VHOME/.config"
+      install -d -o ${admin_user} -g ${admin_user} "$VHOME/.config/gtk-3.0"
+      if ! grep -qs "file:///vault" "$VHOME/.config/gtk-3.0/bookmarks"; then
+        echo "file:///vault Vault" >> "$VHOME/.config/gtk-3.0/bookmarks"
+      fi
+      chown ${admin_user}:${admin_user} "$VHOME/.config/gtk-3.0/bookmarks"
+
+      # System-wide dconf defaults: never auto-lock the screen.
+      # RDP sessions must stay unlocked (the user authenticates via xrdp).
+      # Written as a system db so it applies to the user before first login
+      # and cannot be shadowed by a stale user dconf DB.
+      install -d /etc/dconf/profile
+      printf 'user-db:user\nsystem-db:vps-desktop\n' > /etc/dconf/profile/user
+      install -d /etc/dconf/db/vps-desktop.d
+      printf '%s\n' \
+        '[org/gnome/desktop/screensaver]' \
+        'lock-enabled=false' \
+        'idle-activation-enabled=false' \
+        'lock-delay=uint32 0' \
+        '[org/gnome/desktop/session]' \
+        'idle-delay=uint32 0' \
+        '[org/gnome/settings-daemon/plugins/power]' \
+        'idle-dim=false' \
+        'sleep-inactive-ac-type=string "nothing"' \
+        'sleep-inactive-battery-type=string "nothing"' \
+        > /etc/dconf/db/vps-desktop.d/00-no-autolock
+      dconf update
 
   - path: /usr/local/lib/vps-desktop/02-chrome.sh
     permissions: '0755'
@@ -138,7 +185,7 @@ runcmd:
   - bash /usr/local/lib/vps-desktop/02-chrome.sh
 
 final_message: |
-  VPS ready. Start VNC: vncserver :1
-  Modern GNOME: vncserver :1 -wm gnome
-  Connect: ssh -L 55901:localhost:5901 -i <key> ubuntu@<ip>, then vncviewer localhost:55901
-  VNC password: ${admin_password}
+  VPS ready. xrdp is running on port 3389.
+  Connect: ssh -L 33389:localhost:3389 -i <key> ubuntu@<ip>
+  Then connect with RDP client to localhost:33389
+  Password: ${admin_password}

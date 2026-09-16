@@ -20,8 +20,8 @@ flavor_name          = "c1.xlarge"
 image_name           = "GOLD Ubuntu 24.04 LTS"
 admin_user           = "ubuntu"
 ssh_user             = "ubuntu"
-local_vnc_port       = 55901
-operator_public_ipv4   = "${OPERATOR_IPv4}"
+local_rdp_port       = 33389
+operator_public_ipv4 = "${OPERATOR_IPv4}"
 operator_public_ipv6 = "${OPERATOR_IPv6}"
 deployment_id        = "${DEPLOYMENT_ID}"
 insecure             = ${INSECURE}
@@ -42,11 +42,14 @@ echo ""
 echo "VM IPv4: $(terraform output -raw vm_ipv4)"
 echo "VM IPv6: $(terraform output -raw vm_ipv6)"
 echo "SSH private Key:   $(terraform output -raw private_key_path)"
-echo "Admin/VNC Pass:  $(terraform output -raw admin_password)"
+echo "Admin Password:    $(terraform output -raw password_file_path)"
 
 echo ""
 echo "Connect over SSH with:"
 terraform output -raw ssh_command
 echo ""
-echo "Start a VNC session with:"
-terraform output -raw vnc_session_command
+echo "Start RDP tunnel with:"
+terraform output -raw ssh_and_rdp_tunnel_command
+echo ""
+echo "Connect RDP client (e.g. rdpclient) with:"
+terraform output -raw rdp_connect_command

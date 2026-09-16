@@ -13,7 +13,7 @@ resource "random_string" "suffix" {
 locals {
   deployment_id      = var.deployment_id != "" ? var.deployment_id : "vps-${random_string.suffix[0].result}"
   private_key        = "${path.module}/${var.keys_dir}/${local.deployment_id}.pem"
-  vnc_password_file  = "${path.module}/${var.keys_dir}/${local.deployment_id}.vncpass"
+  password_file      = "${path.module}/${var.keys_dir}/${local.deployment_id}.password"
   operator_ipv4_cidr = var.operator_public_ipv4 != "" ? "${var.operator_public_ipv4}/32" : "0.0.0.0/0"
   operator_ipv6_cidr = var.operator_public_ipv6 != "" ? "${var.operator_public_ipv6}/128" : "::/0"
   has_ipv6           = var.operator_public_ipv6 != ""
@@ -31,9 +31,9 @@ resource "local_sensitive_file" "private_key" {
   file_permission = "0600"
 }
 
-resource "local_sensitive_file" "vnc_password" {
+resource "local_sensitive_file" "admin_password" {
   content         = random_password.admin.result
-  filename        = local.vnc_password_file
+  filename        = local.password_file
   file_permission = "0600"
 }
 
@@ -48,7 +48,7 @@ data "openstack_networking_secgroup_v2" "default" {
 
 resource "openstack_networking_secgroup_v2" "ssh_only" {
   name        = "${local.deployment_id}-ssh"
-  description = "SSH-only ingress. VNC via SSH tunnel."
+  description = "SSH-only ingress. RDP via SSH tunnel."
 }
 
 resource "openstack_networking_secgroup_rule_v2" "ssh" {
@@ -109,17 +109,16 @@ resource "openstack_compute_instance_v2" "vm" {
   }
 
   user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    admin_user       = var.admin_user
-    admin_password   = random_password.admin.result
-    ssh_public_key   = tls_private_key.deployer.public_key_openssh
-    turbovnc_deb_url = var.turbovnc_deb_url
+    admin_user     = var.admin_user,
+    admin_password = random_password.admin.result,
+    ssh_public_key = tls_private_key.deployer.public_key_openssh,
   })
 }
 
 resource "openstack_blockstorage_volume_v3" "storage" {
-  name              = "${local.deployment_id}-storage"
-  size              = var.storage_volume_size_gb
-  volume_type       = var.storage_volume_type
+  name        = "${local.deployment_id}-storage"
+  size        = var.storage_volume_size_gb
+  volume_type = var.storage_volume_type
   # No availability_zone: NREC Cinder rejects Nova AZ names ("osl-default-1 is invalid");
   # omitting lets Cinder's default scheduler place it, as the NREC dashboard does.
 }
