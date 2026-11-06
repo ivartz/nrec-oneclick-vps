@@ -62,3 +62,25 @@ a missing volume never blocks boot.
 ```bash
 terraform destroy
 ```
+
+## Local KVM variant (no Terraform/OpenStack)
+
+`deploy-local.sh` runs the same cloud-init stack (same `cloud-init.yaml.tftpl`,
+rendered with sed instead of `templatefile()`) on a KVM guest on a standard
+Ubuntu 24.04 Server host, via libvirt (`virt-install` + NoCloud seed ISO):
+
+```bash
+sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients cloud-image-utils virtinst
+./deploy-local.sh    # env overrides: VCPUS MEMORY_MB ROOT_DISK_GB STORAGE_GB IMAGE_URL
+```
+
+- Base image: official Ubuntu noble server cloud image, downloaded once to
+  `/var/lib/libvirt/images/` (AppArmor-safe location for guest disks)
+- Same artifacts: `keys/<id>.pem`, `keys/<id>.password`, second disk formatted
+  and mounted at `/vault`, xrdp on 3389, GNOME Flashback session
+- Network: libvirt default NAT — VM IPv4 reachable from the host only, so the
+  operator-IP security group is unnecessary; RDP: `ssh -L 33389:<vm-ip>:3389 <host>`
+- vs GOLD image: `render` group dropped from the user config (it only exists
+  once an NVIDIA driver creates it; `useradd -G render` would fail otherwise)
+
+Tear down: `./destroy-local.sh <id>`
