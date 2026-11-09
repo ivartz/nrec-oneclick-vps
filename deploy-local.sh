@@ -14,7 +14,8 @@ ROOT_DISK_GB=${ROOT_DISK_GB:-40}
 STORAGE_GB=${STORAGE_GB:-20}                 # second disk -> /vault (00-storage.sh)
 ADMIN_USER=${ADMIN_USER:-ubuntu}
 SSH_USER=${SSH_USER:-ubuntu}
-LOCAL_RDP_PORT=${LOCAL_RDP_PORT:-33389}
+LOCAL_VNC_PORT=${LOCAL_VNC_PORT:-55901}      # matches terraform local_vnc_port
+TURBOVNC_DEB_URL=${TURBOVNC_DEB_URL:-https://github.com/TurboVNC/turbovnc/releases/download/3.3/turbovnc_3.3_amd64.deb}
 IMAGE_URL=${IMAGE_URL:-https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img}
 IMG_DIR=/var/lib/libvirt/images              # AppArmor-safe location for guest disks
 DEPLOYMENT_ID="vps-local-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \\n' | head -c 6)"
@@ -61,6 +62,7 @@ mkdir -p vm
 sed -e "s/\${admin_user}/$ADMIN_USER/g" \
     -e "s|\${admin_password}|$(esc "$ADMIN_PASSWORD")|g" \
     -e "s|\${ssh_public_key}|$(esc "$(cat "$KEY.pub")")|g" \
+    -e "s|\${turbovnc_deb_url}|$(esc "$TURBOVNC_DEB_URL")|g" \
     -e "s/groups: render, video, sudo/groups: video, sudo/" \
     cloud-init.yaml.tftpl > "vm/$DEPLOYMENT_ID.user-data"
 printf 'instance-id: %s\nlocal-hostname: %s\n' "$DEPLOYMENT_ID" "$DEPLOYMENT_ID" \
@@ -128,5 +130,6 @@ echo "Disks:           $VM_DIR/"
 echo "SSH private key: $KEY"
 echo "Admin password:  $PASSFILE"
 echo "SSH:             ssh -i $KEY $SSH_USER@$IP"
-echo "RDP (from host): $IP:3389"
-echo "RDP (remote op): ssh -L $LOCAL_RDP_PORT:$IP:3389 <this-host>, then RDP client -> localhost:$LOCAL_RDP_PORT"
+echo "VNC: start on VM:  ssh -i $KEY $SSH_USER@$IP -X  then: vncserver :1"
+echo "VNC (from host):   vncviewer $IP:5901"
+echo "VNC (remote op):   ssh -L $LOCAL_VNC_PORT:$IP:5901 -i <op-key> <this-host> -X, then vncviewer localhost:$LOCAL_VNC_PORT"

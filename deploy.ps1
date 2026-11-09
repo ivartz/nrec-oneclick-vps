@@ -18,7 +18,7 @@ flavor_name          = "c1.xlarge"
 image_name           = "GOLD Ubuntu 24.04 LTS"
 admin_user           = "ubuntu"
 ssh_user             = "ubuntu"
-local_rdp_port       = 33389
+local_vnc_port       = 55901
 operator_public_ipv4 = "$operatorIp"
 operator_public_ipv6 = ""
 deployment_id        = "$deploymentId"
@@ -43,4 +43,8 @@ if ($LASTEXITCODE) { Write-Host "ERROR: apply failed" -ForegroundColor Red; exit
 Write-Host "`nVM IPv4: $(terraform output -raw vm_ipv4)"
 Write-Host "VM IPv6: $(terraform output -raw vm_ipv6)"
 Write-Host "Key:   $(terraform output -raw private_key_path)"
-Write-Host "Pass:  $(terraform output -raw admin_password)`n"
+Write-Host "Pass:  $(terraform output -raw admin_password)"
+Write-Host ""
+Write-Host "SSH: $(terraform output -raw ssh_command)"
+Write-Host "VNC tunnel: $(terraform output -raw ssh_and_vnc_tunnel_command)"
+Write-Host "VNC start:  $(terraform output -raw vnc_session_command)"

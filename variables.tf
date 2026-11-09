@@ -38,9 +38,14 @@ variable "admin_user" {
   default = "ubuntu"
 }
 
-variable "local_rdp_port" {
+variable "turbovnc_deb_url" {
+  type    = string
+  default = "https://github.com/TurboVNC/turbovnc/releases/download/3.3/turbovnc_3.3_amd64.deb"
+}
+
+variable "local_vnc_port" {
   type    = number
-  default = 33389
+  default = 55901
 }
 
 variable "operator_public_ipv4" {
