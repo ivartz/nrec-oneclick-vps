@@ -74,7 +74,10 @@ $SUDO cp "$IMG_DIR/ubuntu-noble-cloudimg-amd64.img" "$VM_DIR/root.qcow2"
 $SUDO qemu-img resize "$VM_DIR/root.qcow2" "${ROOT_DISK_GB}G" >/dev/null
 $SUDO qemu-img create -f qcow2 "$VM_DIR/storage.qcow2" "${STORAGE_GB}G" >/dev/null
 $SUDO mkdir -p "$VM_DIR/seed"
-$SUDO cp "vm/$DEPLOYMENT_ID.user-data" "vm/$DEPLOYMENT_ID.meta-data" "$VM_DIR/seed/"
+# cloud-localds wants literal seed/user-data + seed/meta-data names, not the
+# source basenames (cp-to-dir default) — copy with explicit destination names.
+$SUDO cp "vm/$DEPLOYMENT_ID.user-data" "$VM_DIR/seed/user-data"
+$SUDO cp "vm/$DEPLOYMENT_ID.meta-data" "$VM_DIR/seed/meta-data"
 rm -f "vm/$DEPLOYMENT_ID.user-data"          # contains password+key: remove from repo
 $SUDO cloud-localds "$VM_DIR/seed.iso" "$VM_DIR/seed/user-data" "$VM_DIR/seed/meta-data"
 
@@ -88,15 +91,26 @@ $SUDO virt-install --name "$DEPLOYMENT_ID" --memory "$MEMORY_MB" --vcpus "$VCPUS
     --osinfo detect=on,require=off \
     --graphics none --video virtio --import --noautoconsole
 
-# --- resolve IPv4 from the libvirt DHCP lease (MAC -> lease) ---
-MAC=$($SUDO virsh domiflist "$DEPLOYMENT_ID" | awk '/net0/{print $NF}')
+# --- resolve guest IPv4 from the libvirt DHCP lease ---
+# The lease table prints a header whose $5 is literally "Protocol", and leases
+# of destroyed VMs linger — so neither blank/wildcard matching nor "first
+# match" is safe. Match the row by hostname (cloud-init sets local-hostname =
+# DEPLOYMENT_ID, visible in net-dhcp-leases), extract the IP column
+# position-independently; MAC regex from domiflist is the fallback.
+lease_lookup() {
+    $SUDO virsh net-dhcp-leases default 2>/dev/null | awk -v k="$1" '
+        index($0,k) { for (i=1;i<=NF;i++) if ($i ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}(\/|$)/) { sub(/\/.*/,"",$i); print $i } }'
+}
 IP=""
 for _ in $(seq 1 60); do
-    IP=$($SUDO virsh net-dhcp-leases default | awk -v m="$MAC" 'index($0,m){print $5}' | cut -d/ -f1)
-    [ -n "$IP" ] && break
+    IP=$(lease_lookup "$DEPLOYMENT_ID")
+    [ -z "$IP" ] || break
+    MAC=$($SUDO virsh domiflist "$DEPLOYMENT_ID" 2>/dev/null | grep -oE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1)
+    [ -z "$MAC" ] || IP=$(lease_lookup "$MAC")
+    [ -z "$IP" ] || break
     sleep 5
 done
-[ -n "$IP" ] || { echo "ERROR: no DHCP lease for $MAC — check: virsh net-dhcp-leases default"; exit 1; }
+[ -n "$IP" ] || { echo "ERROR: no DHCP lease for $DEPLOYMENT_ID — check: virsh net-dhcp-leases default"; exit 1; }
 
 # --- wait for cloud-init (same as null_resource.wait_for_cloud_init) ---
 echo "VM up at $IP — waiting for cloud-init (up to 15 min)..."

@@ -11,4 +11,6 @@ $SUDO virsh destroy "$ID" 2>/dev/null || true
 $SUDO virsh undefine "$ID" 2>/dev/null || true
 $SUDO rm -rf "/var/lib/libvirt/images/$ID"
 rm -f "keys/$ID.pem" "keys/$ID.pem.pub" "keys/$ID.password"
+rm -f "vm/$ID.user-data" "vm/$ID.meta-data"   # deploy scratch seed files
+rmdir vm 2>/dev/null || true
 echo "Destroyed $ID"
