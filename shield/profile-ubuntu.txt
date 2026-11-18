@@ -6,13 +6,19 @@ archive.ubuntu.com
 security.ubuntu.com
 ports.ubuntu.com
 old-releases.ubuntu.com
+changelogs.ubuntu.com
+
 dl.google.com
 packages.google.com
+www.google.com
+clients2.google.com
+
 github.com
 objects.githubusercontent.com
 release-assets.githubusercontent.com
 raw.githubusercontent.com
+
 # time sync (needed for TLS validity):
 ntp.ubuntu.com
 ubuntu.pool.ntp.org
-
+contracts.canonical.com
