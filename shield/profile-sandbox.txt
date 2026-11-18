@@ -1,0 +1,29 @@
+# Network shield profile: sandbox
+# One domain per line (dnsmasq pattern /domain/ = the domain and its subdomains).
+# Everything else egress-dropped + logged. Comments start with #.
+#
+# OS/toolchain integrity only (packages are apt/GPG-signed):
+archive.ubuntu.com
+security.ubuntu.com
+ports.ubuntu.com
+old-releases.ubuntu.com
+dl.google.com
+packages.google.com
+github.com
+objects.githubusercontent.com
+release-assets.githubusercontent.com
+raw.githubusercontent.com
+# time sync (needed for TLS validity):
+ntp.ubuntu.com
+ubuntu.pool.ntp.org
+# LLM endpoint (UiO sandbox stance):
+gpt.uio.no
+# dnsmasq nftset mirrors an A record under the reply's CANONICAL name: a
+# CNAME'd domain must list its target too, else the IP never enters allow4
+# (gpt.uio.no is CNAME -> lb-w3d-prod-vip-3.uio.no). Also note nftset adds are
+# async: the very first connection after a fresh lookup can race the set update
+# (dnsmasq #2.87 race thread) — a retry always clears it.
+lb-w3d-prod-vip-3.uio.no
+# Deliberately NOT in sandbox: pypi.org, files.pythonhosted.org, registry.npmjs.org,
+# huggingface.co, api.openai.com, github raw pushes, webhooks/pastebin (exfil channels).
+# Add them (or copy this file to profile-<name>.txt) when a project needs them.
