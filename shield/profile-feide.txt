@@ -1,0 +1,43 @@
+# One domain per line (dnsmasq pattern /domain/ = the domain and its subdomains).
+# Everything else egress-dropped + logged. Comments start with #.
+
+# OS/toolchain integrity only (packages are apt/GPG-signed):
+archive.ubuntu.com
+security.ubuntu.com
+ports.ubuntu.com
+old-releases.ubuntu.com
+dl.google.com
+packages.google.com
+github.com
+objects.githubusercontent.com
+release-assets.githubusercontent.com
+raw.githubusercontent.com
+# time sync (needed for TLS validity):
+ntp.ubuntu.com
+ubuntu.pool.ntp.org
+
+# UiO Feide (browser)
+auth.dataporten.no
+login.microsoftonline.com
+aadcdn.msauth.net
+aadcdn.msftauth.net
+adfs.uio.no
+login.microsoft.com
+idp.feide.no
+identity.nel.measure.office.net
+login.live.com
+weblogin2.uio.no
+
+content-autofill.googleapis.com
+optimizationguide-pa.googleapis.com
+
+k8s-ingress-nlb-feide-prod1-3abd71d267cacf72.elb.eu-north-1.amazonaws.com
+login.mso.msidentity.com
+www.tm.aadcdn.msauth.tcs.trafficmanager.net
+www.tm.aadcdn.msftauth.trafficmanager.net
+lb-w3d-uio-vip-1.uio.no
+a.privatelink.msidentity.com
+nel.measure.office.net.edgesuite.net
+login.msa.msidentity.com
+lb-w3d-prod-vip-1.uio.no
+
