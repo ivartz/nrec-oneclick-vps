@@ -115,10 +115,9 @@ IP/port filtering sits at network/transport and DNS at the application layer).
   Hypervisor-level L2 isolation (separate libvirt network) and a second VM are
   out of reach from the guest. This is also exactly what NREC security groups
   do in the OpenStack variant (rules enforced on the hypervisor).
-- **Profiles** (UiO IT-security "flere profiler" idea): one plain-text allowlist
+- **Shield Profiles**: one plain-text allowlist
   per profile in `shield/profile-<name>.txt`, chosen with `SHIELD=<name>`;
-  `SHIELD=none` = plain NAT (no shield). Shipped: `ubuntu` — distro/toolchain
-  mirrors. Planned: `uio-test` (UiO/eduroam scope).
+  `SHIELD=none` = plain NAT (no shield). 
 - **F1 (IP/port):** nftables on the shield: forward `policy drop`; only web
   (TCP 80/443, QUIC UDP 443) and NTP **to IPs that DNS approved**; masquerade.
 - **F2 (DNS/host):** the shield's dnsmasq is the agent's only resolver; each
@@ -207,45 +206,8 @@ returns 200; non-allowlisted domain rejected instantly (curl rc=7); direct-IP
 bypass blocked; `allow4` self-populates with TTLs; `shield-report` and the
 `shield-monitor` timer active; survives a shield reboot (udev renames land at
 coldplug, nft rules reloaded via enabled `nftables.service`, dnsmasq active).
-Implementation pitfalls that were found and fixed on the way:
-- netplan `match: { macaddress: … }` values must be **quoted** — an unquoted
-  `aa:bb:cc`-style MAC gets parsed as base-60 numbers, the match fails and
-  the VM ends up with no configured network.
-- nft: a brace block after a match (`iifname X oifname Y { … }`) parses as an
-  anonymous set — repeat the full match per rule; and `reject with icmpx type
-  administratively-prohibited` is not accepted by nft 1.0.9, use
-  `port-unreachable`. `reject` is also a **terminal** verdict: a `log` rule
-  placed after it never sees the rejected packets (deny-logging appeared to
-  work, kernel log was empty) — put the log rule first. And `nft -f` **merges**
-  into the live ruleset — reloading a conf without `flush ruleset` duplicates
-  every chain rule, and the stale first copy shadows the fresh one; the conf
-  now starts with `flush ruleset` so reloads are atomic replaces.
-- dnsmasq `nftset=/domain/` mirrors an answer's IPs under the reply's
-  **canonical** name: a CNAME'd allowlisted domain never enters `allow4`
-  unless its CNAME target domain is listed too (`gpt.uio.no` →
-  `lb-w3d-prod-vip-3.uio.no` — now both in the profile). nftset adds are
-  also async: first connection after a fresh lookup can race the set update;
-  retry clears it.
-- **allow4 lifetime vs record TTL (the silent-lapse bug):** dnsmasq writes an
-  nftset entry only on an *upstream* reply and stamps it with the record TTL,
-  capped by (never raised above) the set timeout. A ~48-min-TTL domain is
-  answered from dnsmasq's cache until its set entry times out at 30 min, and
-  nothing re-adds it — allowlisted access dies exactly at the timeout (looked
-  like "is this the 30-min TTL?" — yes). Short-TTL records do the reverse:
-  re-mirrors downgrade entries to ~48 s lifetimes. Fix: `min-cache-ttl=1800`
-  (floor) + `shield-keepalive.timer` re-adding every profile domain's current
-  IPs every 4 min (delete+add resets the kernel timer — the set's own 30-min
-  timeout). Keepalive's `nft delete`/`nft add` must be separate calls:
-  `nft "delete … 2>/dev/null; add …"` makes nft parse the redirect and
-  syntax-error into a silent no-op.
-- interface naming: nft/dnsmasq key on `wan0`/`lan0`, but netplan match-based
-  renames only take effect at the next coldplug. Fixed with a udev rule
-  (`/etc/udev/rules.d/42-shield-if.rules`, written by cloud-init, names NICs
-  by MAC from boot 2 onward) plus a MAC-lookup rename at the top of
-  `00-shield.sh` for boot 1 — followed by `netplan apply`, NOT
-  `networkctl reload` (reload leaves renamed NICs DOWN and unconfigured).
 
-**v1.0 deliberate gaps** (each is a documented next layer, not an oversight):
+**Deliberate gaps** (each is a documented next layer, not an oversight):
 - F3 (URL path/content, WAF-ish): DNS+IP allowlisting is host-granular.
   Path-level + HTTP(S)-content control needs an explicit egress proxy on the
   shield (mitmproxy/Squid + CA trust in the agent image) — biggest remaining
