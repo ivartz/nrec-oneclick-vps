@@ -177,6 +177,29 @@ shield (nft input rule).
   `old-releases.ubuntu.com`'s current RRset) keeps those IPs in `allow4`
   legitimately — content is then only stopped by TLS cert mismatch, not by
   the firewall. Truly cutting such a site = F3 egress proxy (see gaps).
+- **Which domains to allow?** `./shield-suggest.sh <id>` — each manual run
+  reports ALL traffic nftables blocked (windowed by `--since`, default this
+  boot) and makes every blocked dst actionable:
+  1. queried, not-yet-allowed names whose current IPs (resolved via the
+     shield's own dnsmasq, same answer the agent got) match blocked dsts —
+     one copy/paste `shield-allow.sh` line, subsumed subdomains collapsed;
+     names queried *before* the window qualify too (a page resolves early,
+     its connections get denied later) and are labelled as such
+  2. blocked IPs no queried name explains → reverse-DNS (PTR) owner hint;
+     allow that DOMAIN — bare IPs are GC'd from `allow4` by keepalive, the
+     profile is domain-based by design
+  Nothing is allowed automatically. Re-run after allowing: allowed names
+  drop out. Needs the deny-log rate limit generous enough for browsing
+  bursts (60/min in the template) or the snapshot is incomplete.
+- **Re-apply a profile:** `./shield-apply.sh <id>` (SHIELD=<profile> as usual)
+  — diffs the live dnsmasq `nftset=` lines against `shield/profile-<name>.txt`
+  and makes live EXACTLY equal to the file: revokes drift first (fail-closed),
+  then adds missing, both as single batched `shield-allow.sh` calls. Re-running
+  is a no-op (CNAME targets live in the profile too). Caveat: the profile FILE
+  is the source of truth — live allows made by hand on the host are wiped by an
+  apply unless they were recorded in the same profile file your copy reads
+  (host sync-dir and the Termux repo are separate copies: profile edits in one
+  are invisible/overwritten by the other).
 
 **Verified on local KVM (2026-11-17, `deploy-local.sh`/`destroy-local.sh`):**
 full lifecycle passes — shield + agent cloud-init `errors: []`; agent DNS is

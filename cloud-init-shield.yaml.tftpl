@@ -108,8 +108,11 @@ write_files:
               # port-unreachable as the icmpx type keyword).
               # LOG MUST COME FIRST: reject is a terminal verdict, so a log
               # rule after it never sees the rejected packets (observed: zero
-              # [shield-drop] lines while denies worked fine).
-              iifname "lan0" limit rate 10/minute burst 5 packets counter log prefix "[shield-drop] "
+              # [shield-drop] lines while denies worked fine). Rate limit only
+              # guards the log volume — keep it above a realistic browsing
+              # burst (a page load fires many denied flows), else deny lines
+              # and shield-suggest.sh's snapshot go missing.
+              iifname "lan0" limit rate 60/minute burst 20 packets counter log prefix "[shield-drop] "
               iifname "lan0" counter reject with icmpx type port-unreachable
           }
           chain input {

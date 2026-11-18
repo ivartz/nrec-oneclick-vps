@@ -29,7 +29,10 @@ ID=$1; shift
 SHIELD=${SHIELD:-sandbox}
 HEX=${ID#vps-local-}
 GW="10.99.$(( 16#${HEX: -2} % 239 + 1 )).2"   # same subnet derivation as deploy-local.sh
-SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i keys/$ID.pem ubuntu@$GW"
+# LogLevel=ERROR silences the "Warning: Permanently added ..." noise that
+# UserKnownHostsFile=/dev/null prints on every connection (we discard known
+# hosts on purpose: agentbox IPs are reused with fresh keys per redeploy).
+SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i keys/$ID.pem ubuntu@$GW"
 PROFILE="shield/profile-$SHIELD.txt"
 
 for D in "$@"; do
