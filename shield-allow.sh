@@ -18,7 +18,7 @@
 # seconds; stale RRset generations no dig can rediscover are swept by the
 # keepalive timer's garbage-collect (<=4 min).
 # Usage: ./shield-allow.sh [--revoke] <deployment-id> <domain> [domain...]
-#        SHIELD=<profile> picks a profile other than sandbox (default).
+#        SHIELD=<profile> picks a profile other than ubuntu (default).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"   # keys/ and shield/ are relative to THIS dir
 REV=0
@@ -26,7 +26,7 @@ if [ "${1:-}" = "--revoke" ]; then REV=1; shift; fi
 [ $# -ge 2 ] || { echo "usage: $0 [--revoke] <deployment-id> <domain> [domain...]"; exit 1; }
 ID=$1; shift
 [ -f "keys/$ID.pem" ] || { echo "ERROR: no keys/$ID.pem next to this script — run the copy in the deploy dir (on the KVM host: ~/Projects/nrec-oneclick-vps-sync)"; exit 1; }
-SHIELD=${SHIELD:-sandbox}
+SHIELD=${SHIELD:-ubuntu}
 HEX=${ID#vps-local-}
 GW="10.99.$(( 16#${HEX: -2} % 239 + 1 )).2"   # same subnet derivation as deploy-local.sh
 # LogLevel=ERROR silences the "Warning: Permanently added ..." noise that

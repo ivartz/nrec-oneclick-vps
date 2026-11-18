@@ -3,7 +3,7 @@
 # Builds the same Ubuntu 24.04 desktop VM on this host via libvirt:
 #   cloud image qcow2 + cloud-init.yaml.tftpl (rendered with sed) + NoCloud seed ISO.
 #
-# Network shield (SHIELD=sandbox, default; SHIELD=none = old plain-NAT flow):
+# Network shield (SHIELD=ubuntu, default; SHIELD=none = old plain-NAT flow):
 # the agent VM is fronted by a second tiny "shield" VM. The agent sits on an
 # isolated libvirt network (agentbox-<n>: no DHCP, no NAT, forward=none) whose
 # only way out is the shield: default-deny egress (nftables) + DNS allowlist
@@ -26,7 +26,7 @@ SSH_USER=${SSH_USER:-ubuntu}
 LOCAL_VNC_PORT=${LOCAL_VNC_PORT:-55901}      # matches terraform local_vnc_port
 TURBOVNC_DEB_URL=${TURBOVNC_DEB_URL:-https://github.com/TurboVNC/turbovnc/releases/download/3.3/turbovnc_3.3_amd64.deb}
 IMAGE_URL=${IMAGE_URL:-https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img}
-SHIELD=${SHIELD:-sandbox}                    # profile name (shield/profile-*.txt) or none
+SHIELD=${SHIELD:-ubuntu}                    # profile name (shield/profile-*.txt) or none
 IMG_DIR=/var/lib/libvirt/images              # AppArmor-safe location for guest disks
 DEPLOYMENT_ID="vps-local-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \\n' | head -c 6)"
 VM_DIR="$IMG_DIR/$DEPLOYMENT_ID"

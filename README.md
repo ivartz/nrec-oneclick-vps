@@ -99,7 +99,7 @@ sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients cloud-image-util
 
 The agent VM runs an autonomous AI agent **with sudo** — anything enforced
 inside that VM can be undone by the agent itself. So the network guard lives
-**outside** it: `deploy-local.sh` (default `SHIELD=sandbox`) deploys a second
+**outside** it: `deploy-local.sh` (default `SHIELD=ubuntu`) deploys a second
 tiny VM as the agent's only way to the internet. The filter layers below are
 numbered **F1–F4** ("F" for filter — reserving L1–L4 for the OSI model, where
 IP/port filtering sits at network/transport and DNS at the application layer).
@@ -117,9 +117,8 @@ IP/port filtering sits at network/transport and DNS at the application layer).
   do in the OpenStack variant (rules enforced on the hypervisor).
 - **Profiles** (UiO IT-security "flere profiler" idea): one plain-text allowlist
   per profile in `shield/profile-<name>.txt`, chosen with `SHIELD=<name>`;
-  `SHIELD=none` = plain NAT (no shield). Shipped: `sandbox` — distro/toolchain
-  mirrors + `gpt.uio.no` only. Planned: `uio-test` (UiO/eduroam scope), `open`
-  (world/uH sector), FEIDE-gateway fronting for public web services.
+  `SHIELD=none` = plain NAT (no shield). Shipped: `ubuntu` — distro/toolchain
+  mirrors. Planned: `uio-test` (UiO/eduroam scope).
 - **F1 (IP/port):** nftables on the shield: forward `policy drop`; only web
   (TCP 80/443, QUIC UDP 443) and NTP **to IPs that DNS approved**; masquerade.
 - **F2 (DNS/host):** the shield's dnsmasq is the agent's only resolver; each
@@ -142,7 +141,7 @@ IP/port filtering sits at network/transport and DNS at the application layer).
   Every query and denial is logged, and `sudo shield-report` on the shield
   prints a one-screen audit (nft counters, live allowlist, recent denies, top
   DNS queries, active flows). A domain in the log + refused = "profile
-  `sandbox` does not allow this host; ask the operator".
+  `ubuntu` does not allow this host; ask the operator".
 - **Monitoring:** `sudo shield-report` on demand; a systemd timer snapshots it
   every 10 min (`journalctl -u shield-monitor`) — NIST AI RMF "measure/
   monitor": visibility into agent network behavior, tamper-evident because the

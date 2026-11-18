@@ -1,7 +1,7 @@
 # Sandbox firewall rules — porting reference
 
 Distillation of the universal rules for sandboxing an autonomous AI agent VM,
-for implementing the `sandbox`/profile concept as **OpenStack security groups**
+for implementing the shield/profile-* concept as **OpenStack security groups**
 (main branch `deploy.sh`/Terraform) and, where needed, Neutron FWaaS or a
 shield/router VM. Derived from the local KVM shield (`cloud-init-shield.yaml.tftpl`)
 plus OWASP LLM Top 10 / OWASP Agentic Top 10 (2026) / NIST AI RMF threat framing:
@@ -25,18 +25,14 @@ agent VM itself is never the enforcement point.
 | U9 | **Everything else implicitly denied**; every deny should be *legible* to the agent (RST/reject + a lookup-able policy, as the KVM shield does) — plain SGs silently drop → agents see timeouts and retry-storm; mitigate by giving the agent the profile text (e.g. world-readable note in the image / a /policy page on the gateway). | "Understandable denies" requirement. |
 | U10 | **Monitoring outside the agent VM**: DNS query log, per-rule counters, flow snapshots (KVM shield: `shield-report`). On OpenStack SGs give you none of this — see gaps. | NIST AI RMF "measure"; tamper-evidence vs a sudo agent. |
 
-## Profile slots (UiO "flere profiler" presets)
+## Shield profiles
 
-Slots: `ssh-in(operator)` `dns-out(resolvers)` `ntp-out(pool)` `llm(gateway)`
-`mirrors(distro+toolchain)` `registries(pypi/npm)` `uio-scope-in`
-`web-in(FEIDE gw)` `ssh-out`.
-
-- **sandbox** (v0.1, implemented on KVM): U0–U3 full, U4 = gpt.uio.no only,
-  U5 mirrors only, registries/ssh-out OFF.
-- **uio-test**: + eduroam-scope inbound test ports, + UiO resolvers, egress
+- **ubuntu**
+- **feide**
+- **uio-gpt**
+- **hermes-uio-gpt**
+- **TODO: uio-test**: + eduroam-scope inbound test ports, + UiO resolvers, egress
   within UiO-published ranges where needed, still deny-to-rest-of-UiO (U6).
-- **open / uH-sector**: + `web-in` behind a FEIDE-authenticating gateway VM
-  (later), + registries, mirrors as before.
 
 ## OpenStack implementation notes
 
@@ -45,7 +41,7 @@ Slots: `ssh-in(operator)` `dns-out(resolvers)` `ntp-out(pool)` `llm(gateway)`
   rules are separate (`ethertype`) — the NREC `dualStack`/`IPv6` networks make
   v6 pairs mandatory (public IPv6!).
 - **Quota**: default ≈40 SG rules / project (`openstack quota show | grep -i security_group`).
-  The sandbox profile = ~10–15 destinations × 2 ethertypes → fits; check
+  The ubuntu profile = ~10–15 destinations × 2 ethertypes → fits; check
   before adding long CDN pin-lists.
 - **Attach ONLY the custom group** to the agent instance (`security_groups = [custom]`)
   — `default` must not be in the list (it allow-all egresses).
@@ -116,7 +112,7 @@ prefer gateways (U4) over pinning.
 - **Google (Chrome, dl.google.com)** → AS15169 announced prefixes:
   `https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS15169`
   (large set — consider fetching Chrome .deb once at build time instead of
-  allowing all of Google in `sandbox`).
+  allowing all of Google in `ubuntu`).
 
 Regenerate resolver data with:
 ```bash

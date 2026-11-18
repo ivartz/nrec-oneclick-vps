@@ -16,17 +16,3 @@ raw.githubusercontent.com
 ntp.ubuntu.com
 ubuntu.pool.ntp.org
 
-# UiO GPT
-gpt.uio.no
-lb-w3d-prod-vip-3.uio.no
-
-# Search Engines
-startpage.com
-www.google.com
-search.brave.com
-
-# Hermes Agent
-hermes-agent.nousresearch.com
-hermes-assets.nousresearch.com
-web-assets.nousresearch.com
-6df65cc0faa729d5.vercel-dns-016.com

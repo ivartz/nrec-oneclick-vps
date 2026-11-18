@@ -1,7 +1,7 @@
 #!/bin/bash
 # shield-apply.sh — re-apply a profile to a RUNNING shield: makes the live
 # dnsmasq nftset= set EXACTLY equal to shield/profile-$SHIELD.txt (default
-# sandbox; SHIELD=<profile> as in deploy-local.sh/shield-allow.sh), without
+# ubuntu; SHIELD=<profile> as in deploy-local.sh/shield-allow.sh), without
 # redeploying anything. Thin diff over shield-allow.sh — no new mechanism:
 #   live domains  = the shield's /etc/dnsmasq.conf nftset= lines
 #   wanted        = the profile file (comments/blank lines ignored)
@@ -18,7 +18,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"   # keys/ and shield/ are relative to THIS dir
 ID=${1:?usage: shield-apply.sh <deployment-id>}
-SHIELD=${SHIELD:-sandbox}
+SHIELD=${SHIELD:-ubuntu}
 PROFILE="shield/profile-$SHIELD.txt"
 [ -f "$PROFILE" ] || { echo "ERROR: no $PROFILE"; exit 1; }
 [ -f "keys/$ID.pem" ] || { echo "ERROR: no keys/$ID.pem — run from the deploy dir"; exit 1; }
