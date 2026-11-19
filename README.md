@@ -31,7 +31,7 @@ SHIELD=ubuntu ./deploy-local.sh
 
 `ubuntu` is the default if `SHIELD` is unset. Other presets are in `shield/profile-*.txt`; use the filename without `profile-` and `.txt` as the profile name.
 
-Save the deployment ID and addresses printed by the script. The ID identifies the pair, for example `vps-9d9148` on NREC or `vps-local-9d9148` on KVM. VM names add `-agent` and `-shield`. The generated SSH key is `keys/vps-<deployment-id>.pem`.
+Save the deployment ID and addresses printed by the script. The ID identifies the pair, for example `vps-9d9148` on NREC or `vps-local-9d9148` on KVM. VM names add `-agent` and `-shield`. The generated SSH key is `keys/<deployment-id>.pem`.
 
 NREC uses `terraform.tfstate` by default. A new deploy refuses a state that already owns resources. Keep the state, `vm/openstack.tfvars.json`, `vm/<deployment-id>.outputs.json` and the generated key for managing the deployment. See [technical notes](docs/sandbox.md) for separate states and bootstrap details.
 
