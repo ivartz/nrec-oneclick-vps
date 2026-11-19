@@ -13,7 +13,7 @@ agent VM itself is never the enforcement point.
 
 | # | Rule | Why (threat it closes) |
 |---|------|------------------------|
-| U0 | **No ingress** except TCP 22 from operator IP (/32 v4, /128 v6). No floating IP on the agent; keep IPv6 exposure paired with SG v6 rules. | RCE→botnet surface zero. Matches current `ssh_only` group. |
+| U0 | **No ingress** except TCP 22 from operator IP (/32 v4, /128 v6). No floating IP on the agent; keep IPv6 exposure paired with SG v6 rules. | RCE→botnet surface zero. Matches current `agent` group. |
 | U1 | **Egress default-deny.** In Neutron: do NOT attach the `default` SG (it carries allow-all egress); attach only your custom group. A group with zero egress rules = deny all egress. Returns are stateful-allowed automatically. | Exfil/C2 by default; OWASP Agentic "tool misuse / excessive agency". |
 | U2 | **DNS egress only to designated resolvers** (UDP+TCP 53): your shield, or pinned resolvers. Never 0.0.0.0/0. | Blocks DNS-tunnel exfil and allow-list bypass via rogue resolvers. |
 | U3 | **NTP egress** (UDP 123) to designated pool. | Clock skew breaks TLS validity; cheap, low-risk exception. |

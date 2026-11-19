@@ -40,8 +40,8 @@ if ($LASTEXITCODE) { throw "plan failed" }
 terraform apply -auto-approve -input=false
 if ($LASTEXITCODE) { Write-Host "ERROR: apply failed" -ForegroundColor Red; exit 1 }
 
-Write-Host "`nVM IPv4: $(terraform output -raw vm_ipv4)"
-Write-Host "VM IPv6: $(terraform output -raw vm_ipv6)"
+Write-Host "`nAgent IPv4: $(terraform output -raw agent_ipv4)"
+Write-Host "Agent IPv6: $(terraform output -raw agent_ipv6)"
 Write-Host "Key:   $(terraform output -raw private_key_path)"
 Write-Host "Pass:  $(terraform output -raw admin_password)"
 Write-Host ""

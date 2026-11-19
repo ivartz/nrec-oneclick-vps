@@ -22,12 +22,7 @@ SHIELD=${SHIELD:-ubuntu}
 PROFILE="shield/profile-$SHIELD.txt"
 [ -f "$PROFILE" ] || { echo "ERROR: no $PROFILE"; exit 1; }
 [ -f "keys/$ID.pem" ] || { echo "ERROR: no keys/$ID.pem — run from the deploy dir"; exit 1; }
-HEX=${ID#vps-local-}
-GW="10.99.$(( 16#${HEX: -2} % 239 + 1 )).2"   # same subnet derivation as deploy-local.sh
-# LogLevel=ERROR silences the "Warning: Permanently added ..." noise that
-# UserKnownHostsFile=/dev/null prints on every connection (we discard known
-# hosts on purpose: agentbox IPs are reused with fresh keys per redeploy).
-SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i keys/$ID.pem ubuntu@$GW"
+source shield/connection.sh
 
 LIVE=$($SSH "sed -n 's|^nftset=/\([^/]*\)/4#.*|\1|p' /etc/dnsmasq.conf" | sort -u)
 WANT=$(grep -vE '^[[:space:]]*(#|$)' "$PROFILE" | sort -u)

@@ -32,12 +32,7 @@ if [ "${2:-}" = "--since" ]; then
     SINCE=${3:?--since needs a spec, e.g. "5 min ago"}
 fi
 [ -f "keys/$ID.pem" ] || { echo "ERROR: no keys/$ID.pem — run from the deploy dir"; exit 1; }
-HEX=${ID#vps-local-}
-GW="10.99.$(( 16#${HEX: -2} % 239 + 1 )).2"
-# LogLevel=ERROR silences the "Warning: Permanently added ..." noise that
-# UserKnownHostsFile=/dev/null prints on every connection (we discard known
-# hosts on purpose: agentbox IPs are reused with fresh keys per redeploy).
-SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i keys/$ID.pem ubuntu@$GW"
+source shield/connection.sh
 
 # window: --since spec passed straight to journalctl, else current boot
 if [ -n "$SINCE" ]; then

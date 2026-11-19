@@ -42,13 +42,9 @@ resource "openstack_compute_keypair_v2" "deployer" {
   public_key = tls_private_key.deployer.public_key_openssh
 }
 
-data "openstack_networking_secgroup_v2" "default" {
-  name = "default"
-}
-
-resource "openstack_networking_secgroup_v2" "ssh_only" {
-  name        = "${local.deployment_id}-ssh"
-  description = "SSH-only ingress. VNC via SSH tunnel."
+resource "openstack_networking_secgroup_v2" "agent" {
+  name        = "${local.deployment_id}-agent"
+  description = "Agent: operator SSH ingress and shield WireGuard egress."
 }
 
 resource "openstack_networking_secgroup_rule_v2" "ssh" {
@@ -59,7 +55,7 @@ resource "openstack_networking_secgroup_rule_v2" "ssh" {
   port_range_min    = 22
   port_range_max    = 22
   remote_ip_prefix  = local.operator_ipv4_cidr
-  security_group_id = openstack_networking_secgroup_v2.ssh_only.id
+  security_group_id = openstack_networking_secgroup_v2.agent.id
 }
 
 resource "openstack_networking_secgroup_rule_v2" "ssh_v6" {
@@ -70,7 +66,7 @@ resource "openstack_networking_secgroup_rule_v2" "ssh_v6" {
   port_range_min    = 22
   port_range_max    = 22
   remote_ip_prefix  = local.operator_ipv6_cidr
-  security_group_id = openstack_networking_secgroup_v2.ssh_only.id
+  security_group_id = openstack_networking_secgroup_v2.agent.id
 }
 
 data "openstack_networking_network_v2" "ipv6" {
@@ -81,7 +77,7 @@ data "openstack_networking_network_v2" "dualstack" {
   name = "dualStack"
 }
 
-data "openstack_compute_flavor_v2" "vgpu" {
+data "openstack_compute_flavor_v2" "agent" {
   name = var.flavor_name
 }
 
@@ -96,12 +92,13 @@ resource "random_password" "admin" {
   override_special = "!@#%^*()-_=+"
 }
 
-resource "openstack_compute_instance_v2" "vm" {
-  name              = local.deployment_id
-  flavor_id         = data.openstack_compute_flavor_v2.vgpu.id
+resource "openstack_compute_instance_v2" "agent" {
+  depends_on        = [openstack_networking_secgroup_rule_v2.agent_bootstrap, null_resource.agent_default_egress]
+  name              = "${local.deployment_id}-agent"
+  flavor_id         = data.openstack_compute_flavor_v2.agent.id
   image_id          = data.openstack_images_image_v2.ubuntu.id
   availability_zone = var.availability_zone
-  security_groups   = [data.openstack_networking_secgroup_v2.default.name, openstack_networking_secgroup_v2.ssh_only.name]
+  security_groups   = [openstack_networking_secgroup_v2.agent.name]
   key_pair          = openstack_compute_keypair_v2.deployer.name
 
   network {
@@ -117,25 +114,25 @@ resource "openstack_compute_instance_v2" "vm" {
 }
 
 resource "openstack_blockstorage_volume_v3" "storage" {
-  name              = "${local.deployment_id}-storage"
-  size              = var.storage_volume_size_gb
-  volume_type       = var.storage_volume_type
+  name        = "${local.deployment_id}-storage"
+  size        = var.storage_volume_size_gb
+  volume_type = var.storage_volume_type
   # No availability_zone: NREC Cinder rejects Nova AZ names ("osl-default-1 is invalid");
   # omitting lets Cinder's default scheduler place it, as the NREC dashboard does.
 }
 
 resource "openstack_compute_volume_attach_v2" "storage" {
-  instance_id = openstack_compute_instance_v2.vm.id
+  instance_id = openstack_compute_instance_v2.agent.id
   volume_id   = openstack_blockstorage_volume_v3.storage.id
 }
 
 resource "null_resource" "wait_for_cloud_init" {
-  depends_on = [openstack_compute_instance_v2.vm]
-  triggers   = { instance_id = openstack_compute_instance_v2.vm.id }
+  depends_on = [openstack_compute_instance_v2.agent]
+  triggers   = { instance_id = openstack_compute_instance_v2.agent.id }
 
   connection {
     type        = "ssh"
-    host        = local.has_ipv6 ? openstack_compute_instance_v2.vm.access_ip_v6 : openstack_compute_instance_v2.vm.access_ip_v4
+    host        = local.has_ipv6 ? openstack_compute_instance_v2.agent.access_ip_v6 : openstack_compute_instance_v2.agent.access_ip_v4
     user        = var.ssh_user
     private_key = tls_private_key.deployer.private_key_openssh
     timeout     = "10m"

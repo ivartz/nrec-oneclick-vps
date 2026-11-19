@@ -74,6 +74,45 @@ a missing volume never blocks boot.
 terraform destroy
 ```
 
+## OpenStack shield (WireGuard)
+
+`SHIELD=ubuntu ./deploy.sh` creates an agent (`c1.xlarge`) and shield
+(`c1.medium`) in the project from `env.sh`. With no `OPERATOR_PUBLIC_IPV6`,
+both use `dualStack`. WireGuard uses their NREC IPv4 addresses; it carries
+IPv4 traffic on `10.99.0.10` (agent) and `10.99.0.2` (shield).
+
+Both VMs and their security groups are named `<id>-agent` and `<id>-shield`.
+Terraform uses the `agent` and `shield` resource labels, with `agent_ipv4` /
+`agent_ipv6` and `shield_ipv4` / `shield_ipv6` outputs.
+The agent's security group permits only UDP/51820 to the shield after
+bootstrap. Direct IPv4/IPv6 egress remains blocked even if the agent disables
+WireGuard or changes its routes. The shield runs the KVM dnsmasq/nftables
+policy: profile IPs on HTTP/HTTPS, QUIC and NTP, with DNS, deny logs,
+keepalive and `shield-report`. DNS resolves unlisted names too; their IPs
+are not added to the allow set. Shared-IP destinations remain an IP-filter
+limitation, not domain/URL isolation.
+
+Bootstrap temporarily allows IPv4 downloads. Setup removes that rule;
+a setup failure attempts lockdown too. `--provision-only` intentionally
+leaves bootstrap open. Finish/resume with:
+
+```bash
+./shield-setup-openstack.sh <id>
+./shield-allow.sh <id> <domain>
+./shield-allow.sh --revoke <id> <domain>
+SHIELD=ubuntu ./shield-apply.sh <id>
+./shield-suggest.sh <id> --since '5 min ago'
+```
+
+State defaults to `terraform.tfstate`; generated variables are in
+`vm/openstack.tfvars.json`, connection metadata in `vm/<id>.outputs.json`.
+`STATE` and `VARS` override those paths. `deploy.sh` refuses a state that
+already owns resources, rather than replacing a running pair. Other project
+resources are not imported or modified. Private IPv4 on NREC's `IPv6`
+network is intended to use the same tunnel design; that network is not yet
+live-tested. Windows `deploy.ps1` does not run WireGuard setup; use
+`deploy.sh` for the shielded deployment.
+
 ## Local KVM variant (no Terraform/OpenStack)
 
 `deploy-local.sh` runs the same cloud-init stack (same `cloud-init.yaml.tftpl`,
