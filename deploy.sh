@@ -6,6 +6,8 @@ source env.sh
 SHIELD=${SHIELD:-ubuntu}
 [[ "$SHIELD" =~ ^[a-zA-Z0-9_-]+$ ]] || exit 1
 [ -f "shield/profile-$SHIELD.txt" ] || { echo "Missing profile $SHIELD"; exit 1; }
+source shield/validation.sh
+profile_domains "shield/profile-$SHIELD.txt" >/dev/null
 STATE=${STATE:-terraform.tfstate}
 VARS=${VARS:-vm/openstack.tfvars.json}
 mkdir -p vm keys

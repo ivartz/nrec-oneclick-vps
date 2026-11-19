@@ -63,11 +63,13 @@ if [ ${#missing[@]} -gt 0 ]; then
     exit 1
 fi
 if [ "$SHIELD" != none ]; then
+    [[ "$SHIELD" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo 'ERROR: invalid profile name' >&2; exit 1; }
     PROFILE="shield/profile-$SHIELD.txt"
     [ -f "$PROFILE" ] || { echo "ERROR: no such shield profile: $PROFILE"; exit 1; }
-    # one line, space-separated: a sed token must not inject newlines into the
-    # YAML block scalar (cloud-init-shield.yaml.tftpl expands it in a bash for-loop)
-    ALLOW_DOMAINS=$(sed 's/#.*//' "$PROFILE" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')
+    source shield/validation.sh
+    DOMAINS=$(profile_domains "$PROFILE")
+    # Render validated domains as one space-separated line for cloud-init.
+    ALLOW_DOMAINS=$(printf '%s\n' "$DOMAINS" | tr '\n' ' ' | sed 's/ $//')
     [ -n "$ALLOW_DOMAINS" ] || { echo "ERROR: $PROFILE contains no domains"; exit 1; }
 fi
 $SUDO virsh net-start default 2>/dev/null || true

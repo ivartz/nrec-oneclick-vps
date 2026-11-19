@@ -19,13 +19,16 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"   # keys/ and shield/ are relative to THIS dir
 ID=${1:?usage: shield-apply.sh <deployment-id>}
 SHIELD=${SHIELD:-ubuntu}
+[[ "$SHIELD" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo 'ERROR: invalid profile name' >&2; exit 1; }
 PROFILE="shield/profile-$SHIELD.txt"
 [ -f "$PROFILE" ] || { echo "ERROR: no $PROFILE"; exit 1; }
 [ -f "keys/$ID.pem" ] || { echo "ERROR: no keys/$ID.pem — run from the deploy dir"; exit 1; }
+source shield/validation.sh
+WANT=$(profile_domains "$PROFILE")
 source shield/connection.sh
-
-LIVE=$($SSH "sed -n 's|^nftset=/\([^/]*\)/4#.*|\1|p' /etc/dnsmasq.conf" | sort -u)
-WANT=$(grep -vE '^[[:space:]]*(#|$)' "$PROFILE" | sort -u)
+LIVE=$(live_domains)
+LIVE=$(printf '%s\n' "$LIVE" | sort -u)
+WANT=$(printf '%s\n' "$WANT" | sort -u)
 ADD=$(comm -13 <(echo "$LIVE") <(echo "$WANT"))
 DROP=$(comm -23 <(echo "$LIVE") <(echo "$WANT"))
 

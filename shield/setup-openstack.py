@@ -134,8 +134,9 @@ def load_inputs(config_file, profile_file):
         domain = line.split('#', 1)[0].strip().lower()
         if not domain:
             continue
-        if len(domain) > 253 or not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label)
-                                      for label in domain.split('.')):
+        if (len(domain) > 253 or '.' not in domain or re.fullmatch(r'[0-9.]+', domain)
+                or not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label)
+                           for label in domain.split('.'))):
             raise ValueError(f'invalid profile domain: {domain!r}')
         if domain not in domains:
             domains.append(domain)

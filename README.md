@@ -78,7 +78,7 @@ Suggest domains to open based on traffic blocked in the last 20 seconds:
 ./shield-suggest.sh vps-local-9d9148 --since '20 s ago'
 ```
 
-Review suggestions before allowing them. Allow a domain and record it in the selected profile:
+Review suggestions before allowing them. Use domain names only, not URLs or IP addresses. Allow a domain and record it in the selected profile:
 
 ```bash
 SHIELD=ubuntu ./shield-allow.sh vps-9d9148 search.brave.com

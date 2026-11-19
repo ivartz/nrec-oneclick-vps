@@ -25,80 +25,82 @@ REV=0
 if [ "${1:-}" = "--revoke" ]; then REV=1; shift; fi
 [ $# -ge 2 ] || { echo "usage: $0 [--revoke] <deployment-id> <domain> [domain...]"; exit 1; }
 ID=$1; shift
+source shield/validation.sh
+for D in "$@"; do
+    if ! valid_domain "$D"; then
+        printf 'ERROR: invalid domain: %s (use a hostname, not a URL or IP)\n' "$D" >&2
+        exit 1
+    fi
+done
 [ -f "keys/$ID.pem" ] || { echo "ERROR: no keys/$ID.pem next to this script — run the copy in the deploy dir (on the KVM host: ~/Projects/nrec-oneclick-vps-sync)"; exit 1; }
 SHIELD=${SHIELD:-ubuntu}
-source shield/connection.sh
+[[ "$SHIELD" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo 'ERROR: invalid profile name' >&2; exit 1; }
 PROFILE="shield/profile-$SHIELD.txt"
+[ -f "$PROFILE" ] || { echo "ERROR: no $PROFILE" >&2; exit 1; }
+profile_domains "$PROFILE" >/dev/null
+source shield/connection.sh
+live_domains >/dev/null
 
-for D in "$@"; do
-    if [ "$REV" = 1 ]; then
-        # CNAME symmetry (mirror of the add path): the canonical target got
-        # its own nftset= line + profile entry when allowed; revoke removes
-        # both too, else the domain's IPs keep mirroring under the canonical
-        # name and the revoke silently does nothing.
+if [ "$REV" = 1 ]; then
+    for D in "$@"; do
+        # Revoke both the requested name and its CNAME, then clear addresses
+        # from both DNS views and their established conntrack flows.
         CANONR=$($SSH "dig +short A $D" | grep -vE '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | head -1 | sed 's/\.$//') || true
+        if [ -n "$CANONR" ] && ! valid_domain "$CANONR"; then
+            printf 'ERROR: invalid CNAME target: %s\n' "$CANONR" >&2
+            exit 1
+        fi
         if [ -n "$CANONR" ] && [ "$CANONR" != "$D" ]; then
-            [ -f "$PROFILE" ] && sed -i "\#^$CANONR\$#d" "$PROFILE" || true
-            CANONR=${CANONR:-no-such-line}
+            sed -i "\#^$CANONR\$#d" "$PROFILE"
         else
             CANONR=
         fi
-        [ -f "$PROFILE" ] && sed -i "\#^$D\$#d" "$PROFILE" || true
-        # Delete live set entries for EVERY IP the domain may have handed
-        # out, from BOTH resolver views: dnsmasq's cache (@127.0.0.1 — what
-        # agents actually get) and live upstream. Round-robin/CDN domains
-        # rotate their RRset, so digging one view alone leaves other IPs
-        # alive in allow4 (observed: nevron CDN IP stayed reachable).
-        # Also flush conntrack: the forward chain accepts ct-established
-        # traffic regardless of allow4, so an open browser tab would keep
-        # streaming until closed; deleting the flows makes revoke instant.
+        sed -i "\#^$D\$#d" "$PROFILE"
         $SSH "for ip in \$( (dig +short A $D @127.0.0.1; dig +short A $D; dig +short A ${CANONR:-$D} @127.0.0.1; dig +short A ${CANONR:-$D}) | grep -E '^[0-9.]+\$' | sort -u); do sudo nft delete element inet shield allow4 { \$ip } 2>/dev/null || true; sudo conntrack -D -r \$ip >/dev/null 2>&1 || true; done; sudo sed -i -e '\\#nftset=/$D/#d' -e '\\#nftset=/${CANONR:-none}/#d' /etc/dnsmasq.conf"
-    else
-        { [ -f "$PROFILE" ] && grep -qxF "$D" "$PROFILE"; } || echo "$D" >> "$PROFILE"
-        $SSH "grep -qF 'nftset=/$D/' /etc/dnsmasq.conf || echo 'nftset=/$D/4#inet#shield#allow4' | sudo tee -a /etc/dnsmasq.conf >/dev/null"
-    fi
-done
-
-# CNAME trap (add path): dnsmasq mirrors under the answer's CANONICAL name;
-# detect it from the A answer and add that domain as an extra nftset= line.
-CANONS=""
-if [ "$REV" = 0 ]; then
-    for D in "$@"; do
-        CANON=$($SSH "dig +short A $D" | grep -vE '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | head -1 | sed 's/\.$//') || true
-        if [ -n "$CANON" ] && [ "$CANON" != "$D" ]; then
-            echo "CNAME target detected: $CANON — auto-adding it too"
-            { [ -f "$PROFILE" ] && grep -qxF "$CANON" "$PROFILE"; } || echo "$CANON" >> "$PROFILE"
-            $SSH "grep -qF 'nftset=/$CANON/' /etc/dnsmasq.conf || echo 'nftset=/$CANON/4#inet#shield#allow4' | sudo tee -a /etc/dnsmasq.conf >/dev/null"
-            CANONS="$CANONS $CANON"
-        fi
     done
-fi
-
-$SSH "sudo systemctl restart dnsmasq"
-
-if [ "$REV" = 1 ]; then
+    $SSH "sudo systemctl restart dnsmasq"
     echo "revoked: $* — no longer live on $GW, removed from $PROFILE"
 else
-    # prime allow4 deterministically: manual add runs on the kernel clock and
-    # gets the set's full 30-min timeout (dnsmasq's own mirror only fires on
-    # upstream refetches — long-TTL domains would otherwise lapse; the
-    # shield-keepalive.timer on the VM refreshes every profile domain every
-    # 4 min, so primed entries never expire while still in the profile).
-    # Prime EVERY current IP (multi-A/round-robin domains: priming only the
-    # first leaves the others unprimed until the next keepalive tick).
-    for D in "$@" $CANONS; do
+    # Resolve CNAMEs in one SSH session. All requested and returned names are
+    # validated before embedding them in a remote command or dnsmasq rule.
+    PAIRS=$($SSH "for d in $*; do
+        c=\$(dig +short A \"\$d\" | grep -vE '^([0-9]{1,3}\\.){3}[0-9]{1,3}\$' | head -1 | sed 's/\\.\$//')
+        printf '%s|%s\\n' \"\$d\" \"\$c\"
+    done")
+    CANONS=""
+    while IFS='|' read -r D CANON; do
         [ -n "$D" ] || continue
-        IPS=$($SSH "dig +short A $D @127.0.0.1" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
-        if [ -n "$IPS" ]; then
-            for IP in $IPS; do
-                # two separate nft calls: one quoted string with an embedded
-                # "2>/dev/null" makes nft choke (syntax error, silent no-op)
-                $SSH "sudo nft delete element inet shield allow4 \"{ $IP }\" 2>/dev/null; sudo nft add element inet shield allow4 \"{ $IP }\""
-                echo "  $D -> $IP in allow4"
-            done
-        else
-            echo "  WARN: $D resolved to no IPv4 (IPv6-only or missing apex A record?)"
+        if [ -n "$CANON" ] && ! valid_domain "$CANON"; then
+            printf 'ERROR: invalid CNAME target: %s\n' "$CANON" >&2
+            exit 1
         fi
+        if [ -n "$CANON" ] && [ "$CANON" != "$D" ]; then
+            echo "CNAME target detected: $CANON — auto-adding it too"
+            CANONS="$CANONS $CANON"
+        fi
+    done <<< "$PAIRS"
+    for D in "$@" $CANONS; do
+        grep -qxF "$D" "$PROFILE" || echo "$D" >> "$PROFILE"
     done
+    # Append validated rules, restart dnsmasq, and prime every current IPv4 in
+    # one SSH session. Keepalive refreshes the set until the domain is revoked.
+    $SSH "set -e
+    for d in $* $CANONS; do
+        rule=\"nftset=/\$d/4#inet#shield#allow4\"
+        grep -qxF \"\$rule\" /etc/dnsmasq.conf || printf '%s\\n' \"\$rule\" | sudo tee -a /etc/dnsmasq.conf >/dev/null
+    done
+    sudo systemctl restart dnsmasq
+    for d in $* $CANONS; do
+        ips=\$(dig +short A \"\$d\" @127.0.0.1 | grep -E '^([0-9]{1,3}\\.){3}[0-9]{1,3}\$' || true)
+        if [ -z \"\$ips\" ]; then
+            printf '  WARN: %s resolved to no IPv4 (IPv6-only or missing apex A record?)\\n' \"\$d\"
+            continue
+        fi
+        for ip in \$ips; do
+            sudo nft delete element inet shield allow4 \"{ \$ip }\" 2>/dev/null || true
+            sudo nft add element inet shield allow4 \"{ \$ip }\"
+            printf '  %s -> %s in allow4\\n' \"\$d\" \"\$ip\"
+        done
+    done"
     echo "allowed: $* — live on $GW + recorded in $PROFILE"
 fi

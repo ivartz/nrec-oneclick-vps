@@ -5,6 +5,10 @@ ID=${1:?usage: shield-setup-openstack.sh deployment-id}
 STATE=${STATE:-terraform.tfstate}
 VARS=${VARS:-vm/openstack.tfvars.json}
 SHIELD=${SHIELD:-ubuntu}
+[[ "$SHIELD" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo 'ERROR: invalid profile name' >&2; exit 1; }
+[ -f "shield/profile-$SHIELD.txt" ] || { echo "Missing profile $SHIELD" >&2; exit 1; }
+source shield/validation.sh
+profile_domains "shield/profile-$SHIELD.txt" >/dev/null
 source env.sh
 source termux_fix.sh
 out() { terraform output -state="$STATE" -raw "$1"; }
