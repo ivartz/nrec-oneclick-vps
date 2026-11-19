@@ -1,272 +1,119 @@
-# NREC VPS — One-Click OpenStack Deployment
+# Agent sandbox VPS
 
-Ubuntu 24.04 LTS VPS on NREC OpenStack with GNOME desktop (TurboVNC) and Google Chrome. Terraform + cloud-init only.
+Deploy an Ubuntu agent VM and a separate network shield on NREC OpenStack or a local KVM host. The agent has a GNOME desktop accessible through TurboVNC.
 
 ## Prerequisites
 
-- Terraform >= 1.5
-- NREC OpenStack credentials
-- SSH + VNC client
+- **NREC:** Terraform 1.5 or later, SSH, and NREC credentials. Copy `env.sh.template` to `env.sh` and fill in your credentials and project.
+- **Local KVM:** Ubuntu 24.04 host with KVM enabled, SSH, and:
+
+  ```bash
+  sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients cloud-image-utils virtinst wget
+  ```
+
+- A VNC client for desktop access.
 
 ## Deploy
 
-Linux, macOS, Termux:
+Run from the repository directory. For local KVM, run on the KVM host.
+
+NREC:
 
 ```bash
-cp env.sh.template env.sh   # fill in credentials
-./deploy.sh
+SHIELD=ubuntu ./deploy.sh
 ```
 
-Termux: `deploy.sh` auto-starts `https_proxy.py` (DNS workaround) and uses the offline provider mirror.
-
-Windows:
-
-```powershell
-cp env.ps1.template env.ps1 # fill in credentials
-powershell -ExecutionPolicy Bypass -File deploy.ps1
-```
-
-## After deploy
+Local KVM:
 
 ```bash
-ssh -i keys/<id>.pem ubuntu@<ip>
+SHIELD=ubuntu ./deploy-local.sh
+```
+
+`ubuntu` is the default if `SHIELD` is unset. Other presets are in `shield/profile-*.txt`; use the filename without `profile-` and `.txt` as the profile name.
+
+Save the deployment ID and addresses printed by the script. The ID identifies the pair, for example `vps-9d9148` on NREC or `vps-local-9d9148` on KVM. VM names add `-agent` and `-shield`. The generated SSH key is `keys/vps-<deployment-id>.pem`.
+
+NREC uses `terraform.tfstate` by default. A new deploy refuses a state that already owns resources. Keep the state, `vm/openstack.tfvars.json`, `vm/<deployment-id>.outputs.json` and the generated key for managing the deployment. See [technical notes](docs/sandbox.md) for separate states and bootstrap details.
+
+## Connect and start the desktop
+
+Use the addresses printed at deployment. For local KVM, run SSH and the shield commands on the KVM host, which can reach the isolated guest network.
+
+```bash
+ssh -i keys/<deployment-id>.pem ubuntu@<agent-ip>
+ssh -i keys/<deployment-id>.pem ubuntu@<shield-ip>
+```
+
+On the agent, set the Ubuntu user password and the VNC password if desired, then start display 1 as the `ubuntu` user:
+
+```bash
+sudo passwd ubuntu
+vncpasswd
 vncserver :1
 ```
 
-Default session is GNOME Flashback (Metacity). For modern GNOME:
+The default desktop is GNOME Flashback with Metacity. To stop display 1, or start it with modern GNOME instead:
 
 ```bash
+vncserver -kill :1
 vncserver :1 -wm gnome
 ```
 
-Connect VNC via tunnel:
-```bash
-ssh -L 55901:localhost:5901 -i keys/<id>.pem ubuntu@<ip>
-# vncviewer localhost:55901
-```
-
-End VNC session:
-```bash
-vncserver -kill :1
-```
-
-Passwords (all the same):
-- On VM: `cat /home/ubuntu/.vnc-passwd`
-- Local copy: `cat keys/<id>.vncpass`
-
-## Network
-
-- NREC IPv6 network (public IPv6, private IPv4) or dualStack fallback
-- SSH ingress locked to operator IP
-- No floating IPs, no public VNC ports
-
-## Storage
-
-A 50 GB `mass-storage-default` Cinder volume is attached as the second disk
-(`/dev/vdb` or `/dev/sdb` depending on image - detected dynamically), formatted
-ext4 (label `vps-storage`), and mounted at `/vault`. Owned by `ubuntu` -
-read/write out of the box. Mounted at boot via `/etc/fstab` with `nofail`, so
-a missing volume never blocks boot.
-
-## Tear down
+From a vnc client machine that can reach the agent, open an SSH tunnel using the generated key:
 
 ```bash
-terraform destroy
+ssh -L 55901:localhost:5901 -i keys/<deployment-id>.pem ubuntu@<agent-ip>
 ```
 
-## OpenStack shield (WireGuard)
+Connect your VNC client to `localhost:55901`. If accessing local KVM remotely, run this tunnel on the KVM host and forward its port 55901 to your client, or use an SSH jump through the KVM host.
 
-`SHIELD=ubuntu ./deploy.sh` creates an agent (`c1.xlarge`) and shield
-(`c1.medium`) in the project from `env.sh`. With no `OPERATOR_PUBLIC_IPV6`,
-both use `dualStack`. WireGuard uses their NREC IPv4 addresses; it carries
-IPv4 traffic on `10.99.0.10` (agent) and `10.99.0.2` (shield).
+## Manage the shield
 
-Both VMs and their security groups are named `<id>-agent` and `<id>-shield`.
-Terraform uses the `agent` and `shield` resource labels, with `agent_ipv4` /
-`agent_ipv6` and `shield_ipv4` / `shield_ipv6` outputs.
-The agent's security group permits only UDP/51820 to the shield after
-bootstrap. Direct IPv4/IPv6 egress remains blocked even if the agent disables
-WireGuard or changes its routes. The shield runs the KVM dnsmasq/nftables
-policy: profile IPs on HTTP/HTTPS, QUIC and NTP, with DNS, deny logs,
-keepalive and `shield-report`. DNS resolves unlisted names too; their IPs
-are not added to the allow set. Shared-IP destinations remain an IP-filter
-limitation, not domain/URL isolation.
+Use the pair's deployment ID (`vps-...`), not the VM name. For a local deployment use its `vps-local-...` ID and run these commands on the KVM host. `shield-allow.sh` and `shield-apply.sh` use the `ubuntu` profile when `SHIELD` is unset; `shield-suggest.sh` reads the live shield and does not select a profile.
 
-Bootstrap temporarily allows IPv4 downloads. Setup removes that rule;
-a setup failure attempts lockdown too. `--provision-only` intentionally
-leaves bootstrap open. Finish/resume with:
+Suggest domains to open based on traffic blocked in the last 20 seconds:
 
 ```bash
-./shield-setup-openstack.sh <id>
-./shield-allow.sh <id> <domain>
-./shield-allow.sh --revoke <id> <domain>
-SHIELD=ubuntu ./shield-apply.sh <id>
-./shield-suggest.sh <id> --since '5 min ago'
+./shield-suggest.sh vps-9d9148 --since '20 s ago'
+./shield-suggest.sh vps-local-9d9148 --since '20 s ago'
 ```
 
-State defaults to `terraform.tfstate`; generated variables are in
-`vm/openstack.tfvars.json`, connection metadata in `vm/<id>.outputs.json`.
-`STATE` and `VARS` override those paths. `deploy.sh` refuses a state that
-already owns resources, rather than replacing a running pair. Other project
-resources are not imported or modified. Private IPv4 on NREC's `IPv6`
-network is intended to use the same tunnel design; that network is not yet
-live-tested. Windows `deploy.ps1` does not run WireGuard setup; use
-`deploy.sh` for the shielded deployment.
-
-## Local KVM variant (no Terraform/OpenStack)
-
-`deploy-local.sh` runs the same cloud-init stack (same `cloud-init.yaml.tftpl`,
-rendered with sed instead of `templatefile()`) on a KVM guest on a standard
-Ubuntu 24.04 Server host, via libvirt (`virt-install` + NoCloud seed ISO):
+Review suggestions before allowing them. Allow a domain and record it in the selected profile:
 
 ```bash
-sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients cloud-image-utils virtinst
-./deploy-local.sh    # env overrides: VCPUS MEMORY_MB ROOT_DISK_GB STORAGE_GB IMAGE_URL SHIELD
+SHIELD=ubuntu ./shield-allow.sh vps-9d9148 search.brave.com
 ```
 
-- Base image: official Ubuntu noble server cloud image, downloaded once to
-  `/var/lib/libvirt/images/` (AppArmor-safe location for guest disks)
-- Same artifacts: `keys/<id>.pem`, `keys/<id>.password`, second disk formatted
-  and mounted at `/vault`, TurboVNC (start with `vncserver :1`), GNOME Flashback session
-- Network: libvirt default NAT — VM IPv4 reachable from the host only, so the
-  operator-IP security group is unnecessary; VNC: `vncviewer <vm-ip>:5901` from the host,
-  `ssh -L 55901:<vm-ip>:5901 <host>` + `vncviewer localhost:55901` for remote operators
-- vs GOLD image: `render` group dropped from the user config (it only exists
-  once an NVIDIA driver creates it; `useradd -G render` would fail otherwise)
+The command also detects and adds a CNAME target when present. To revoke a domain:
 
-## Network shield (agent sandbox)
-
-The agent VM runs an autonomous AI agent **with sudo** — anything enforced
-inside that VM can be undone by the agent itself. So the network guard lives
-**outside** it: `deploy-local.sh` (default `SHIELD=ubuntu`) deploys a second
-tiny VM as the agent's only way to the internet. The filter layers below are
-numbered **F1–F4** ("F" for filter — reserving L1–L4 for the OSI model, where
-IP/port filtering sits at network/transport and DNS at the application layer).
-
-```
- internet ⇄ libvirt "default" NAT ⇄ [shield VM  wan0
-                                     shield      lan0 10.99.N.2]
-                                     ⇄ isolated net agentbox-N (no DHCP, no NAT) ⇄
-                                     [agent VM 10.99.N.10, default route -> .2]
+```bash
+SHIELD=ubuntu ./shield-allow.sh --revoke vps-9d9148 search.brave.com
 ```
 
-- **Why not inside the agent VM:** its sudo can rewrite iptables/netplan/DNS.
-  Hypervisor-level L2 isolation (separate libvirt network) and a second VM are
-  out of reach from the guest. This is also exactly what NREC security groups
-  do in the OpenStack variant (rules enforced on the hypervisor).
-- **Shield Profiles**: one plain-text allowlist
-  per profile in `shield/profile-<name>.txt`, chosen with `SHIELD=<name>`;
-  `SHIELD=none` = plain NAT (no shield). 
-- **F1 (IP/port):** nftables on the shield: forward `policy drop`; only web
-  (TCP 80/443, QUIC UDP 443) and NTP **to IPs that DNS approved**; masquerade.
-- **F2 (DNS/host):** the shield's dnsmasq is the agent's only resolver; each
-  profile domain gets an `nftset=` line that mirrors its resolved IPs into the
-  nft `allow4` set (TTL-expiring). All other destinations fail closed.
-  (DNS is the naming layer, not the blocklist: arbitrary names still resolve —
-  connecting to an IP that never entered `allow4` is what fails.)
-  Freshness is deterministic, not traffic-driven: `shield-keepalive.timer`
-  (every 4 min) re-resolves each profile domain via the local dnsmasq and
-  resets every `allow4` element's 30-min timer (`nft delete` + `nft add`,
-  separate calls — one quoted nft string with an embedded `2>/dev/null` is a
-  syntax error inside nft itself and silently no-ops); `min-cache-ttl=1800`
-  stops dnsmasq re-mirrors from downgrading entries to short record TTLs.
-  Without this: long-TTL domains (e.g. ~48-min TTL) lapse after 30 min —
-  cached answers never trigger a re-mirror — so allowlisted access would
-  silently die; stale round-robin IPs simply age out.
-- **Legible denials (agents must be able to reason about them):**
-  non-allowlisted connections are **rejected** (RST / port-unreachable) —
-  instant, visible errors the agent's own tools report — not silent timeouts.
-  Every query and denial is logged, and `sudo shield-report` on the shield
-  prints a one-screen audit (nft counters, live allowlist, recent denies, top
-  DNS queries, active flows). A domain in the log + refused = "profile
-  `ubuntu` does not allow this host; ask the operator".
-- **Monitoring:** `sudo shield-report` on demand; a systemd timer snapshots it
-  every 10 min (`journalctl -u shield-monitor`) — NIST AI RMF "measure/
-  monitor": visibility into agent network behavior, tamper-evident because the
-  logs live on the shield VM, not the agent VM.
+Re-apply a profile or change to another one:
 
-Operator access: agent SSH from the host as before (`10.99.N.10`, L2 direct);
-shield SSH `ssh -i keys/<id>.pem ubuntu@10.99.N.2`; agent cannot SSH into the
-shield (nft input rule).
+```bash
+SHIELD=feide ./shield-apply.sh vps-9d9148
+```
 
-**Applying profile changes:**
-- Next deploy: just edit `shield/profile-<name>.txt`.
-- Live (no VM redeploy/restart): `./shield-allow.sh <id> <domain> [domain…]`
-  — appends the `nftset=` line to the shield's dnsmasq.conf AND the profile,
-  then restarts the dnsmasq *service* (~2 s; kernel conntrack/nft survive so
-  established agent connections are unaffected, only resolution pauses) and
-  **primes `allow4`**: resolves through the shield's dnsmasq and adds the IPs
-  manually (full 30-min timer), so the agent VM can curl the domain the
-  second the script finishes — the keepalive timer then keeps it alive as
-  long as the domain stays in the profile.
-  `--revoke` is the mirror: it removes the dnsmasq line + profile entry and
-  kills every live `allow4` entry for the domain (digging BOTH resolver views
-  — dnsmasq's cache and upstream — since round-robin/CDN rotation means one
-  view alone misses IPs agents already hold) and flushes their conntrack
-  flows, so established browser connections die within seconds instead of
-  riding the stateful path until the tab closes. Stale RRset generations that
-  no current dig can rediscover are garbage-collected by the keepalive timer
-  (≤4 min): any element no profile domain currently answers with is deleted.
-  Restart not reload: dnsmasq(8) — "SIGHUP does NOT re-read the configuration
-  file." CNAME'd domains need their target listed too (see profile comment).
-  IP-granularity limit, made visible once: a revoked domain that shares IPs
-  with a still-allowed one (nevron.no shares Canonical CDN IPs published in
-  `old-releases.ubuntu.com`'s current RRset) keeps those IPs in `allow4`
-  legitimately — content is then only stopped by TLS cert mismatch, not by
-  the firewall. Truly cutting such a site = F3 egress proxy (see gaps).
-- **Which domains to allow?** `./shield-suggest.sh <id>` — each manual run
-  reports ALL traffic nftables blocked (windowed by `--since`, default this
-  boot) and makes every blocked dst actionable:
-  1. queried, not-yet-allowed names whose current IPs (resolved via the
-     shield's own dnsmasq, same answer the agent got) match blocked dsts —
-     one copy/paste `shield-allow.sh` line, subsumed subdomains collapsed;
-     names queried *before* the window qualify too (a page resolves early,
-     its connections get denied later) and are labelled as such
-  2. blocked IPs no queried name explains → reverse-DNS (PTR) owner hint;
-     allow that DOMAIN — bare IPs are GC'd from `allow4` by keepalive, the
-     profile is domain-based by design
-  Nothing is allowed automatically. Re-run after allowing: allowed names
-  drop out. Needs the deny-log rate limit generous enough for browsing
-  bursts (60/min in the template) or the snapshot is incomplete.
-- **Re-apply a profile:** `./shield-apply.sh <id>` (SHIELD=<profile> as usual)
-  — diffs the live dnsmasq `nftset=` lines against `shield/profile-<name>.txt`
-  and makes live EXACTLY equal to the file: revokes drift first (fail-closed),
-  then adds missing, both as single batched `shield-allow.sh` calls. Re-running
-  is a no-op (CNAME targets live in the profile too). Caveat: the profile FILE
-  is the source of truth — live allows made by hand on the host are wiped by an
-  apply unless they were recorded in the same profile file your copy reads
-  (host sync-dir and the Termux repo are separate copies: profile edits in one
-  are invisible/overwritten by the other).
+Applying makes the live allowlist match the selected profile file, removing entries not in that file. Use the correct `SHIELD` when allowing or revoking so the intended profile is updated.
 
-**Verified on local KVM (2026-11-17, `deploy-local.sh`/`destroy-local.sh`):**
-full lifecycle passes — shield + agent cloud-init `errors: []`; agent DNS is
-only the shield's dnsmasq (`10.99.N.2`); allowed host through the shield
-returns 200; non-allowlisted domain rejected instantly (curl rc=7); direct-IP
-bypass blocked; `allow4` self-populates with TTLs; `shield-report` and the
-`shield-monitor` timer active; survives a shield reboot (udev renames land at
-coldplug, nft rules reloaded via enabled `nftables.service`, dnsmasq active).
+## Destroy
 
-**Deliberate gaps** (each is a documented next layer, not an oversight):
-- F3 (URL path/content, WAF-ish): DNS+IP allowlisting is host-granular.
-  Path-level + HTTP(S)-content control needs an explicit egress proxy on the
-  shield (mitmproxy/Squid + CA trust in the agent image) — biggest remaining
-  complexity (CA distribution, QUIC, cert pinning), so deferred.
-- F4 (agent-level monitoring): run [AgentSight](https://github.com/eunomia-bpf/agentsight)
-  (eBPF: LLM API calls + kernel-level actions) *inside* the agent VM, shipping
-  logs to the shield; plus endpoint HIDS (Wazuh). On-VM agents are
-  monitoring/early-warning, not enforcement — sudo can tamper with them;
-  enforcement stays on the shield.
-- The agent can always DoS *itself* (its own bandwidth/DNS) — sandboxing is
-  about containment of egress, not availability guarantees.
+NREC — from the deployment directory, using the same state and variables as the deployment. Review the plan before confirming; this destroys the resources in that Terraform state, including the storage volume:
 
-**OpenStack translation (main branch):** the same sandbox profile maps to
-security-group rules (hypervisor-enforced, like the shield) — full universal
-rule set, Terraform/CLI recipes and verified endpoint CIDR slots in
-[`shield/README.md`](shield/README.md). In short: revoke the default
-allow-all egress rule, add stateful egress for DNS/NTP and TCP 443 to
-mirror/gpt.uio.no CIDRs. Coarser (no domain→IP mirroring, no DNS log), but
-zero extra VMs — a `network_profile` variable + secgroup rules in `main.tf`
-when translating. Full DNS-allowlist parity there needs a shield/router VM
-with a floating IP (FWaaS or nftables on it).
+```bash
+source env.sh # if OpenStack credentials are not in environment (check with env | grep OS_)
+source termux_fix.sh # If run from Termux
+terraform destroy -var-file=vm/openstack.tfvars.json
+```
 
-Tear down: `./destroy-local.sh <id>`
+If you used a custom `STATE` or `VARS`, pass the matching paths with `-state` and `-var-file`. Terraform also automatically loads any root `terraform.tfvars` file.
+
+Local KVM — on the KVM host, using the pair's ID. This deletes both VMs and their disks:
+
+```bash
+./destroy-local.sh vps-local-9d9148
+```
+
+For networking limits, profile behavior and troubleshooting, see [technical notes](docs/sandbox.md).
