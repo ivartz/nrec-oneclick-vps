@@ -11,8 +11,13 @@ out() { terraform output -state="$STATE" -raw "$1"; }
 [ "$(out deployment_id)" = "$ID" ] || { echo 'Deployment/state mismatch'; exit 1; }
 AGENT=$(out agent_ipv4); GATEWAY=$(out shield_ipv4)
 KEY=$(out private_key_path)
-SSH=(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -i "$KEY")
-SCP=(scp -q -o StrictHostKeyChecking=accept-new -i "$KEY")
+# NREC recycles public IPs between deployments, so a pinned known_hosts entry
+# from a destroyed VM silently rejects the new occupant (accept-new refuses
+# CONFLICTING keys). Host identity here is the per-deployment keypair, not the
+# IP: trust-on-first-use is meaningless across recycling. LogLevel=ERROR keeps
+# the "Permanently added" note from printing on every connection.
+SSH=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=15 -i "$KEY")
+SCP=(scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$KEY")
 # Fail closed on setup failure, rather than leave bootstrap internet access.
 lock_agent() {
     python3 - "$VARS" <<'PY'
