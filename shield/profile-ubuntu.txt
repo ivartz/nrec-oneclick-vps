@@ -1,24 +1,26 @@
 # One domain per line (dnsmasq pattern /domain/ = the domain and its subdomains).
 # Everything else egress-dropped + logged. Comments start with #.
 
-# OS/toolchain integrity only (packages are apt/GPG-signed):
+# Ubuntu
 archive.ubuntu.com
 security.ubuntu.com
 ports.ubuntu.com
 old-releases.ubuntu.com
 changelogs.ubuntu.com
+# time sync (needed for TLS validity):
+ntp.ubuntu.com
+ubuntu.pool.ntp.org
+contracts.canonical.com
 
+# Google etc.
 dl.google.com
 packages.google.com
 www.google.com
 clients2.google.com
 
+# Github etc.
 github.com
 objects.githubusercontent.com
 release-assets.githubusercontent.com
 raw.githubusercontent.com
 
-# time sync (needed for TLS validity):
-ntp.ubuntu.com
-ubuntu.pool.ntp.org
-contracts.canonical.com
