@@ -40,6 +40,7 @@ SUDO=""
 #     destroy-local.sh can re-derive it. octet 1..239; two concurrent deploys
 #     colliding on the octet (1/239) share the network but would clash on the
 #     static agent IP — rare; destroy+redeploy fixes it. ---
+AGENT_ID="$DEPLOYMENT_ID-agent"
 SHIELD_ID="$DEPLOYMENT_ID-shield"
 OCTET=$(( 16#${DEPLOYMENT_ID: -2} % 239 + 1 ))
 BOX="agentbox-$OCTET"
@@ -48,7 +49,7 @@ GW="10.99.$OCTET.2"          # shield lan0 iface: the agent's gateway + resolver
 AGENT_IP="10.99.$OCTET.10"   # agent VM static address
 mac_of() { local h; h=$(printf '%s' "$1" | md5sum | cut -c1-6)
            printf '52:54:00:%s:%s:%s' "${h:0:2}" "${h:2:2}" "${h:4:2}"; }
-WAN_MAC=$(mac_of "$SHIELD_ID-wan"); LAN_MAC=$(mac_of "$SHIELD_ID-lan"); VM_MAC=$(mac_of "$DEPLOYMENT_ID")
+WAN_MAC=$(mac_of "$SHIELD_ID-wan"); LAN_MAC=$(mac_of "$SHIELD_ID-lan"); VM_MAC=$(mac_of "$AGENT_ID")
 
 # --- preflight ---
 [ -e /dev/kvm ] || { echo "ERROR: /dev/kvm missing — enable virtualization in BIOS"; exit 1; }
@@ -99,9 +100,9 @@ render_agent() {
         -e "s|\${ssh_public_key}|$(esc "$(cat "$KEY.pub")")|g" \
         -e "s|\${turbovnc_deb_url}|$(esc "$TURBOVNC_DEB_URL")|g" \
         -e "s/groups: render, video, sudo/groups: video, sudo/" \
-        cloud-init.yaml.tftpl > "vm/$DEPLOYMENT_ID.user-data"
-    printf 'instance-id: %s\nlocal-hostname: %s\n' "$DEPLOYMENT_ID" "$DEPLOYMENT_ID" \
-        > "vm/$DEPLOYMENT_ID.meta-data"
+        cloud-init.yaml.tftpl > "vm/$AGENT_ID.user-data"
+    printf 'instance-id: %s\nlocal-hostname: %s\n' "$AGENT_ID" "$AGENT_ID" \
+        > "vm/$AGENT_ID.meta-data"
 }
 
 # base image cache + disk helper (guest disks must live under IMG_DIR: AppArmor)
@@ -200,13 +201,13 @@ render_agent
 $SUDO mkdir -p "$VM_DIR/seed"
 new_disk "$VM_DIR/root.qcow2" "${ROOT_DISK_GB}G"
 $SUDO qemu-img create -f qcow2 "$VM_DIR/storage.qcow2" "${STORAGE_GB}G" >/dev/null
-$SUDO cp "vm/$DEPLOYMENT_ID.user-data" "$VM_DIR/seed/user-data"
-$SUDO cp "vm/$DEPLOYMENT_ID.meta-data" "$VM_DIR/seed/meta-data"
-rm -f "vm/$DEPLOYMENT_ID.user-data"          # contains password+key: remove from repo
+$SUDO cp "vm/$AGENT_ID.user-data" "$VM_DIR/seed/user-data"
+$SUDO cp "vm/$AGENT_ID.meta-data" "$VM_DIR/seed/meta-data"
+rm -f "vm/$AGENT_ID.user-data"          # contains password+key: remove from repo
 
 if [ "$SHIELD" != none ]; then
     # static netconfig: no DHCP exists on agentbox; default route + DNS -> shield
-    cat > "vm/$DEPLOYMENT_ID.network-config" <<EOF
+    cat > "vm/$AGENT_ID.network-config" <<EOF
 version: 2
 ethernets:
   eth0:
@@ -218,7 +219,7 @@ ethernets:
     nameservers:
       addresses: [ $GW ]
 EOF
-    $SUDO cp "vm/$DEPLOYMENT_ID.network-config" "$VM_DIR/seed/network-config"
+    $SUDO cp "vm/$AGENT_ID.network-config" "$VM_DIR/seed/network-config"
     $SUDO cloud-localds --network-config "$VM_DIR/seed/network-config" \
         "$VM_DIR/seed.iso" "$VM_DIR/seed/user-data" "$VM_DIR/seed/meta-data"
     NET_ARGS=( --network network="$BOX",model=virtio,mac=$VM_MAC )
@@ -228,8 +229,8 @@ else
 fi
 
 # --- boot ---
-echo "Deploying $DEPLOYMENT_ID (${VCPUS} vCPU, ${MEMORY_MB} MB, root ${ROOT_DISK_GB}G + storage ${STORAGE_GB}G)..."
-$SUDO virt-install --name "$DEPLOYMENT_ID" --memory "$MEMORY_MB" --vcpus "$VCPUS" \
+echo "Deploying $AGENT_ID (${VCPUS} vCPU, ${MEMORY_MB} MB, root ${ROOT_DISK_GB}G + storage ${STORAGE_GB}G)..."
+$SUDO virt-install --name "$AGENT_ID" --memory "$MEMORY_MB" --vcpus "$VCPUS" \
     --disk path="$VM_DIR/root.qcow2",format=qcow2,bus=virtio \
     --disk path="$VM_DIR/storage.qcow2",format=qcow2,bus=virtio \
     --disk path="$VM_DIR/seed.iso",device=cdrom,readonly=on \
@@ -243,14 +244,14 @@ if [ "$SHIELD" != none ]; then
 else
     IP=""
     for _ in $(seq 1 60); do
-        IP=$(lease_lookup "$DEPLOYMENT_ID")
+        IP=$(lease_lookup "$AGENT_ID")
         [ -z "$IP" ] || break
-        MAC=$($SUDO virsh domiflist "$DEPLOYMENT_ID" 2>/dev/null | grep -oE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1)
+        MAC=$($SUDO virsh domiflist "$AGENT_ID" 2>/dev/null | grep -oE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1)
         [ -z "$MAC" ] || IP=$(lease_lookup "$MAC")
         [ -z "$IP" ] || break
         sleep 5
     done
-    [ -n "$IP" ] || { echo "ERROR: no DHCP lease for $DEPLOYMENT_ID — check: virsh net-dhcp-leases default"; exit 1; }
+    [ -n "$IP" ] || { echo "ERROR: no DHCP lease for $AGENT_ID — check: virsh net-dhcp-leases default"; exit 1; }
 fi
 
 # --- wait for cloud-init (same as null_resource.wait_for_cloud_init) ---
@@ -266,7 +267,8 @@ if [ "$SHIELD" != none ]; then
     echo "Shield audit:    ssh -i $KEY $SSH_USER@$GW sudo shield-report"
     echo "Egress profile:  $PROFILE"
 fi
-echo "VM IPv4:         $IP"
+echo "Agent:           $AGENT_ID"
+echo "Agent IPv4:      $IP"
 echo "Disks:           $VM_DIR/"
 echo "SSH private key: $KEY"
 echo "Admin password:  $PASSFILE"

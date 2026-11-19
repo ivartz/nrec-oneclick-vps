@@ -14,13 +14,13 @@ SUDO=""
 OCTET=$(( 16#${ID: -2} % 239 + 1 ))
 BOX="agentbox-$OCTET"
 
-$SUDO virsh destroy "$ID" 2>/dev/null || true
+$SUDO virsh destroy "$ID-agent" 2>/dev/null || true
 $SUDO virsh destroy "$ID-shield" 2>/dev/null || true
-$SUDO virsh undefine "$ID" 2>/dev/null || true
+$SUDO virsh undefine "$ID-agent" 2>/dev/null || true
 $SUDO virsh undefine "$ID-shield" 2>/dev/null || true
 $SUDO rm -rf "/var/lib/libvirt/images/$ID"
 rm -f "keys/$ID.pem" "keys/$ID.pem.pub" "keys/$ID.password"
-rm -f "vm/$ID.user-data" "vm/$ID.meta-data" "vm/$ID.network-config" \
+rm -f "vm/$ID-agent.user-data" "vm/$ID-agent.meta-data" "vm/$ID-agent.network-config" \
       "vm/$ID-shield.user-data" "vm/$ID-shield.meta-data" "vm/$ID-shield.network-config"
 rmdir vm 2>/dev/null || true
 
