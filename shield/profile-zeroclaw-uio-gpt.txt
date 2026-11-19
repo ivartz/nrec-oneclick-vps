@@ -24,6 +24,8 @@ clientservices.googleapis.com
 update.googleapis.com
 ogs.google.com
 www3.l.google.com
+fonts.googleapis.com
+www.gstatic.com
 
 # Github etc.
 github.com
@@ -76,6 +78,14 @@ rr1---sn-ovgq0oxu-j2ie.gvt1.com
 rr2---sn-ovgq0oxu-j2ie.gvt1.com
 rr1.sn-ovgq0oxu-j2ie.gvt1.com
 rr2.sn-ovgq0oxu-j2ie.gvt1.com
+e329293.dscd.akamaiedge.net
+www.tm.aadcdn.msftauth.akadns.net
+aadcdnoriginwus2.afd.azureedge.net
+www.tm.a.prd.aadg.akadns.net
+prdv4a.aadg.msidentity.com
+ohttp-relay-safebrowsing-chrome.google.fastly-edge.com
+server-3-164-240-111.arn53.r.cloudfront.net
+rd-in-f95.1e100.net
 
 # ZeroClaw
 www.zeroclaw.com
